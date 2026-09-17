@@ -1,0 +1,57 @@
+# =============================================================================
+# STEP 3 - Storage (EX-04, and EX-05 by omission)
+# =============================================================================
+# Two claims, because two tiers hold data that must outlive their pod:
+#   - the database files            -> /var/lib/mysql
+#   - the application's data tree   -> /var/www/html (config, apps, user files)
+#
+# There is deliberately NO claim for Redis. See EX-05 in the README: a cache
+# only holds data that can be rebuilt, so persisting it buys nothing and costs
+# space plus one more moving part.
+#
+# ReadWriteOnce = the volume is mounted read-write by a single node. That is
+# the right mode here (one replica each, and neither MariaDB nor Nextcloud
+# tolerates two pods writing the same files). It is also the reason the two
+# Deployments use strategy "Recreate" instead of the default RollingUpdate:
+# a rolling update would try to start the new pod before killing the old one,
+# and the new pod would sit in Pending forever waiting for a volume the old
+# pod still holds.
+#
+# No storageClassName is specified on purpose: Minikube's default class
+# (standard, hostpath provisioner) takes over and provisions dynamically.
+#
+# Apply:
+#   kubectl apply -f 03-storage.yaml
+#
+# Check BEFORE going further - both must show Bound, not Pending:
+#   kubectl get pvc -n cloud
+# A PVC stuck in Pending will block the pod later, and the pod will look like
+# it is the broken one when it is not.
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb-data
+  namespace: cloud
+  labels:
+    app: mariadb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data
+  namespace: cloud
+  labels:
+    app: nextcloud
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

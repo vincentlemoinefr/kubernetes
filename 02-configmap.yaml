@@ -1,0 +1,71 @@
+# =============================================================================
+# STEP 2a - Non-sensitive configuration (EX-07)
+# =============================================================================
+# Everything that is NOT a secret goes here: hostnames, database name,
+# trusted domain. Centralising them means that changing the database host is a
+# one-line edit in one object, not three edits across three Deployments.
+#
+# Note on the hostnames: "mariadb" and "redis" are not IPs and not guesses -
+# they are the names of the Services created in steps 4 and 5. Inside the same
+# namespace, the short name resolves through the cluster DNS
+# (the full name being mariadb.cloud.svc.cluster.local). This is exactly what
+# EX-03 asks for: a stable name that survives the pod's IP changing.
+#
+# NEXTCLOUD_TRUSTED_DOMAINS is the whitelist of Host headers Nextcloud will
+# accept. It MUST contain the host you put in the Ingress (step 7), otherwise
+# the app answers with "Access through untrusted domain" and you will lose an
+# hour looking at the Ingress instead of the app.
+#
+# Apply:
+#   kubectl apply -f 02-configmap.yaml
+# Check:
+#   kubectl get cm cloud-config -n cloud -o yaml
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-config
+  namespace: cloud
+data:
+  # --- database coordinates (shared by mariadb and nextcloud) ---
+  MYSQL_HOST: "mariadb"
+  MYSQL_DATABASE: "nextcloud"
+  MYSQL_USER: "nextcloud"
+
+  # --- cache coordinates ---
+  REDIS_HOST: "redis"
+
+  # --- web tier ---
+  NEXTCLOUD_ADMIN_USER: "admin"
+  # Space-separated list. "nextcloud" is kept so that in-cluster probes and
+  # curl tests from a debug pod are accepted too.
+  NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.local localhost nextcloud"
+---
+# -----------------------------------------------------------------------------
+# A second ConfigMap, holding a file rather than environment variables.
+#
+# Apache prints this at every start:
+#   AH00558: Could not reliably determine the server's fully qualified domain
+#   name, using 10.244.x.x. Set the 'ServerName' directive globally to
+#   suppress this message
+#
+# It is a warning, not an error - Apache falls back to the pod IP, which works
+# but changes at every restart. ServerName is what Apache uses to build
+# self-referential URLs (redirects, error pages), so leaving it on a pod IP
+# means a redirect can point a browser at an address it cannot reach.
+#
+# The value must match the name served by the Ingress, and therefore one of
+# the trusted domains above.
+#
+# Kept apart from cloud-config on purpose: this key is a filename, not a valid
+# environment variable name, and merging the two would break any future
+# "envFrom: configMapRef" on cloud-config.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-apache
+  namespace: cloud
+data:
+  servername.conf: |
+    ServerName nextcloud.local

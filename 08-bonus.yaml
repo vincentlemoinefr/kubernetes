@@ -1,0 +1,122 @@
+# =============================================================================
+# STEP 8 - Bonus (optional, 12 pts)
+# =============================================================================
+# Bonus 1 is already folded into 07-ingress.yaml; bonuses 2 and 3 are below.
+# Bonus 4 is a measurement, not a manifest - see the README.
+#
+# -----------------------------------------------------------------------------
+# BONUS 1 (3 pts) - the 413 on files over 1 MiB
+# -----------------------------------------------------------------------------
+# ingress-nginx sets client_max_body_size to 1m by default. Above that, nginx
+# refuses the request itself and answers 413 Payload Too Large - the request
+# never reaches Nextcloud, which is why the app's own upload limit looks
+# irrelevant. The annotation that raises it:
+#
+#   nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+#
+# Why the limit exists at all: an unbounded body is a free denial of service.
+# Every upload occupies a worker connection, disk space in the proxy's buffer
+# directory and memory, for as long as the client wants. A low default forces
+# the operator to raise the ceiling deliberately, per service, which is the
+# right way round. Setting "0" (unlimited) is almost always wrong.
+#
+# -----------------------------------------------------------------------------
+# BONUS 2 (3 pts) - a second application behind the SAME Ingress
+# -----------------------------------------------------------------------------
+# Uncomment the block below, then add the path to 07-ingress.yaml:
+#
+#   - path: /hello
+#     pathType: Prefix
+#     backend:
+#       service:
+#         name: hello
+#         port:
+#           number: 8080
+#
+# One Ingress, one host, two paths: the lobby now serves two wings. Note that
+# the app behind /hello must itself cope with being served under a sub-path -
+# this demo one does, most real apps need a base-URL setting.
+#
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: hello
+#   namespace: cloud
+#   labels:
+#     app: hello
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: hello
+#   template:
+#     metadata:
+#       labels:
+#         app: hello
+#     spec:
+#       containers:
+#         - name: hello
+#           image: hashicorp/http-echo:1.0
+#           args: ["-text=second wing", "-listen=:8080"]
+#           ports:
+#             - name: http
+#               containerPort: 8080
+#           resources:
+#             requests:
+#               cpu: "10m"
+#               memory: "16Mi"
+#             limits:
+#               cpu: "100m"
+#               memory: "64Mi"
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: hello
+#   namespace: cloud
+# spec:
+#   type: ClusterIP
+#   selector:
+#     app: hello
+#   ports:
+#     - name: http
+#       port: 8080
+#       targetPort: http
+#
+# -----------------------------------------------------------------------------
+# BONUS 3 (4 pts) - HTTPS with a self-signed certificate
+# -----------------------------------------------------------------------------
+# 1) Generate the key pair:
+#
+#    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#      -keyout tls.key -out tls.crt \
+#      -subj "/CN=nextcloud.local/O=nextcloud.local" \
+#      -addext "subjectAltName=DNS:nextcloud.local"
+#
+# 2) Store it in a Secret of type tls (again, created imperatively - the key
+#    is private material and has no business in a manifest):
+#
+#    kubectl create secret tls nextcloud-tls -n cloud \
+#      --cert=tls.crt --key=tls.key
+#
+# 3) Add to the Ingress spec, as a sibling of "rules":
+#
+#      tls:
+#        - hosts:
+#            - nextcloud.local
+#          secretName: nextcloud-tls
+#
+# Why the browser screams: TLS gives you encryption AND identity, and only the
+# first one works here. The certificate says "I am nextcloud.local", but it is
+# signed by itself, not by a Certificate Authority in the browser's trust
+# store, so nothing proves the claim. An attacker in the middle could present
+# their own self-signed certificate with the same name and the browser could
+# not tell the difference - hence the warning, which is about authentication,
+# not about the strength of the encryption.
+#
+# In production you would not hand-roll certificates at all: cert-manager
+# would issue and renew them automatically from Let's Encrypt (or an internal
+# CA), the chain would validate against a trusted root, and the warning would
+# disappear because the identity is now vouched for by a third party.
+# =============================================================================

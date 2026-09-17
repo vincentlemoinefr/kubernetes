@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Challenge Jour 1 · L'État des Lieux</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #58a6ff; --c2: #22d3ee;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul, .panel ol { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(34,211,238,0.05); border: 1px solid rgba(34,211,238,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .bad { color: #f85149; font-weight: 600; }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: 0.95rem; margin-top: 6px; }
+    table.spec th, table.spec td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.spec th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); font-weight: 700; }
+    table.spec td.ref { font-family: var(--font-mono); color: var(--c2); white-space: nowrap; font-size: 0.85rem; }
+    table.spec td.pts { text-align: right; font-family: var(--font-mono); color: var(--c1); white-space: nowrap; }
+    .spoiler { position: relative; margin-top: 6px; }
+    .sp-body { filter: blur(7px); transition: filter 0.45s; user-select: none; }
+    .spoiler.revealed .sp-body { filter: none; user-select: auto; }
+    .sp-btn { display: inline-block; cursor: pointer; margin-bottom: 14px; padding: 8px 20px; border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.78rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .sp-btn:hover { background: rgba(255,255,255,0.09); }
+    .timer { display: inline-block; font-family: var(--font-mono); font-size: 0.8rem; color: var(--c2); border: 1px solid var(--line); padding: 4px 14px; border-radius: 50px; margin-left: 10px; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Challenge Jour 1 · Modules 1 à 3<span class="timer">45 minutes</span></span>
+      <h1>L'État des Lieux</h1>
+      <div class="panel">
+        <p>Vous venez de prendre vos fonctions de <strong>syndic</strong> de la résidence. Votre prédécesseur est parti en laissant trois dossiers de location en cours, et <strong>aucun des trois locataires n'a pu emménager</strong>. Personne ne sait pourquoi.</p>
+        <p>Votre mission tient en deux temps. D'abord <em>comprendre et réparer</em> : trois appartements refusent d'ouvrir, chacun pour une raison différente. Ensuite <em>faire l'inventaire</em> : identifier qui travaille au bureau de gestion, et à quoi sert chacun.</p>
+        <p><strong>La règle du jeu :</strong> vous n'avez droit qu'à quatre commandes pour enquêter , <em>get</em>, <em>describe</em>, <em>logs</em>, <em>events</em>. Pas de moteur de recherche, pas d'entraide, pas de copier-coller d'une correction. Le but n'est pas de réparer vite, c'est d'apprendre à <strong>lire ce que le cluster vous raconte</strong>.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Un bon syndic ne devine pas : il <em>lit le registre</em>. Kubernetes tient un registre d'une précision redoutable, et la quasi-totalité des pannes que vous rencontrerez en quatre jours y sont écrites noir sur blanc. Encore faut-il prendre l'habitude d'aller le consulter <em>avant</em> de toucher à quoi que ce soit.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Mise en place</span>
+      <h2>Préparer le Chantier</h2>
+      <div class="panel"><p>On travaille dans un espace dédié pour ne rien mélanger avec la suite du cursus. Créez le namespace et positionnez-vous dedans.</p>
+        <div class="code"><span class="cmt">1. Verifier que la residence tourne (sinon : minikube start)</span>
+<span class="cmd">$</span> kubectl get nodes
+<span class="cmt">2. Creer l'espace de travail du challenge</span>
+<span class="cmd">$</span> kubectl create namespace chantier
+<span class="cmt">3. S'y installer par defaut : plus besoin de taper -n chantier a chaque fois</span>
+<span class="cmd">$</span> kubectl config set-context --current --namespace=chantier
+<span class="cmt">4. Confirmer : la colonne NAMESPACE doit afficher chantier</span>
+<span class="cmd">$</span> kubectl config view --minify | grep namespace</div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Le réflexe qui sauve</span><div class="prod-txt">Gardez <strong>un second terminal ouvert</strong> en permanence avec <em>kubectl get pods -w</em>. Vous verrez les états défiler en direct au lieu de relancer la commande toutes les cinq secondes. C'est comme ça que travaillent les gens dont c'est le métier, et c'est un réflexe attendu à la certification.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Dossier A</span>
+      <h2>Dossier A : Le Locataire Fantôme</h2>
+      <div class="lab">
+        <span class="lab-badge">Panne 01 · 4 points</span>
+        <h3>Le bail est signé, mais personne n'arrive</h3>
+        <p>Créez ce fichier <em>tel quel</em>, sans le corriger, puis appliquez-le.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">dossier-a.yaml</div><div class="code">apiVersion: v1
+kind: Pod
+metadata:
+  name: locataire-a
+spec:
+  containers:
+  - name: web
+    image: ngnix:1.25
+    ports:
+    - containerPort: 80</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">À faire</div>
+          <div class="code"><span class="cmd">$</span> kubectl apply -f dossier-a.yaml
+<span class="cmd">$</span> kubectl get pods</div>
+          <ol style="margin-top:14px;">
+            <li>Notez l'état exact affiché dans la colonne STATUS. Recopiez-le mot pour mot.</li>
+            <li>Trouvez, dans la sortie de <em>describe</em>, la ligne qui explique la cause. Recopiez-la.</li>
+            <li>Corrigez le manifeste, réappliquez, vérifiez que le pod atteint <em>Running</em>.</li>
+          </ol>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Question de fond</div>
+          <p>Le cluster a-t-il <strong>refusé</strong> votre manifeste, ou l'a-t-il <strong>accepté puis échoué</strong> à l'exécuter ? Cette distinction est capitale : elle sépare les erreurs de <em>syntaxe</em> des erreurs d'<em>exécution</em>, et elles ne se diagnostiquent pas avec les mêmes outils.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Dossier B</span>
+      <h2>Dossier B : Le Bail Illisible</h2>
+      <div class="lab">
+        <span class="lab-badge">Panne 02 · 4 points</span>
+        <h3>Le document est refusé au guichet</h3>
+        <p>Même exercice. Créez ce fichier tel quel et appliquez-le.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">dossier-b.yaml</div><div class="code">apiVersion: v1
+kind: Pod
+metadata:
+  name: locataire-b
+spec:
+containers:
+  - name: web
+    image: nginx:1.25
+    ports:
+      - containerPort: 80</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">À faire</div>
+          <ol>
+            <li>Appliquez le fichier. Le pod n'apparaît <strong>même pas</strong> dans <em>kubectl get pods</em>. Pourquoi ?</li>
+            <li>Lisez le message renvoyé par <em>apply</em>. Il nomme précisément le champ fautif.</li>
+            <li>Corrigez l'indentation, réappliquez, vérifiez.</li>
+          </ol>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Le piège à comprendre</div>
+          <p>Ici, <em>describe</em> et <em>logs</em> ne vous serviront <strong>à rien</strong> : il n'y a aucun objet à décrire. L'erreur a été attrapée par l'API server <em>avant</em> que quoi que ce soit ne soit créé. Savoir reconnaître ce cas en deux secondes vous fera gagner un temps considérable.</p>
+        </div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Astuce de pro</span><div class="prod-txt">Testez un manifeste sans rien créer : <em>kubectl apply -f fichier.yaml --dry-run=server</em>. L'API server valide et répond, mais n'écrit rien dans etcd. Indispensable quand on touche à de la production.</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Dossier C</span>
+      <h2>Dossier C : L'Appartement Introuvable</h2>
+      <div class="lab">
+        <span class="lab-badge">Panne 03 · 5 points</span>
+        <h3>Le dossier est parfait, mais rien ne se passe</h3>
+        <p>Ce manifeste est syntaxiquement irréprochable. Il est accepté sans broncher. Et pourtant.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">dossier-c.yaml</div><div class="code">apiVersion: v1
+kind: Pod
+metadata:
+  name: locataire-c
+spec:
+  containers:
+  - name: web
+    image: nginx:1.25
+    resources:
+      requests:
+        memory: "8Gi"
+        cpu: "3"</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">À faire</div>
+          <ol>
+            <li>Appliquez. Le pod existe bien, mais reste bloqué. Dans quel état exactement ?</li>
+            <li>Dans <em>describe</em>, descendez jusqu'à la section <strong>Events</strong>. Un événement nommé <em>FailedScheduling</em> vous attend, avec une phrase qui dit tout.</li>
+            <li>Comparez ce que demande le pod à ce que possède réellement le nœud :
+              <div class="code" style="margin-top:10px;"><span class="cmd">$</span> kubectl describe node minikube | grep -A8 "Allocatable"</div>
+            </li>
+            <li>Corrigez les ressources demandées pour des valeurs réalistes, réappliquez.</li>
+          </ol>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Question de fond</div>
+          <p>Quel composant du plan de contrôle est responsable de ce refus ? Vous l'avez vu au module 2. Nommez-le, et expliquez en une phrase pourquoi il a préféré <strong>ne rien faire</strong> plutôt que de placer le pod quelque part.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Seconde partie</span>
+      <h2>L'Inventaire du Bureau de Gestion</h2>
+      <div class="panel">
+        <p>Les trois appartements sont réparés. Passons à l'inventaire. Le module 2 vous a décrit le plan de contrôle sur le papier : <strong>allez le voir en vrai</strong>.</p>
+        <div class="code"><span class="cmt">Tous les pods du bureau de gestion, avec le noeud qui les heberge</span>
+<span class="cmd">$</span> kubectl get pods -n kube-system -o wide</div>
+      </div>
+      <div class="lab" style="margin-top:24px;">
+        <span class="lab-badge">Cartographie · 5 points</span>
+        <h3>Remplissez ce tableau, une ligne par pod trouvé</h3>
+        <table class="spec">
+          <tr><th>Pod observé</th><th>Rôle dans la résidence , en vos mots</th><th>Que se passe-t-il s'il s'arrête ?</th></tr>
+          <tr><td class="ref">kube-apiserver-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">etcd-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">kube-scheduler-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">kube-controller-manager-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">kube-proxy-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">coredns-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+          <tr><td class="ref">calico-node-…</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+        </table>
+        <div class="lab-section">
+          <div class="lab-section-title">Les deux questions qui comptent</div>
+          <ol>
+            <li>Un composant vu au module 2 est <strong>absent</strong> de cette liste. Lequel, et pourquoi n'est-il pas un pod ?</li>
+            <li>Certains pods se terminent par <em>-minikube</em>, d'autres par une suite de caractères aléatoires. Qu'est-ce que cette différence de nommage vous apprend sur la façon dont ils ont été créés ?</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Bonus</span>
+      <h2>Bonus : Entrer dans les Murs</h2>
+      <div class="lab">
+        <span class="lab-badge">Bonus · 2 points</span>
+        <h3>Minikube n'est pas un jouet : c'est un vrai cluster</h3>
+        <p>Ce que vous pilotez depuis ce matin a été construit par <em>kubeadm</em>, exactement comme un cluster de production. La preuve en trois commandes.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">Ouvrir la porte de service</div><div class="code"><span class="cmt">Se connecter DANS le noeud lui-meme</span>
+<span class="cmd">$</span> minikube ssh
+<span class="cmt">Le gardien de l'immeuble tourne comme un vrai service systeme</span>
+<span class="cmd">$</span> sudo systemctl status kubelet --no-pager | head -5
+<span class="cmt">Les 4 manifestes qui demarrent le bureau de gestion au boot</span>
+<span class="cmd">$</span> ls -1 /etc/kubernetes/manifests/
+<span class="cmd">$</span> exit</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">À répondre</div>
+          <p>Vous venez de trouver la réponse à la question 1 de la cartographie. Quel est le lien entre le contenu de <em>/etc/kubernetes/manifests/</em> et les pods dont le nom se termine par <em>-minikube</em> ? Qui lit ce dossier, et à quel moment ?</p>
+        </div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Pourquoi ça compte pour la suite</span><div class="prod-txt">Ce dossier est le point d'entrée de plusieurs pannes classiques de la certification : un manifeste statique mal formé et l'API server ne redémarre plus, avec un <em>kubectl</em> qui ne répond plus du tout. On y reviendra au jour 4.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · Évaluation</span>
+      <h2>Barème & Recette</h2>
+      <div class="panel">
+        <p>Noté sur <strong>20 points</strong>, bonus compris. Le corrigé est à la page suivante , n'y allez qu'après avoir vraiment cherché.</p>
+        <table class="spec">
+          <tr><th>Réf.</th><th>Attendu</th><th>Points</th></tr>
+          <tr><td class="ref">A-1</td><td>État exact identifié et nommé correctement</td><td class="pts">2</td></tr>
+          <tr><td class="ref">A-2</td><td>Pod <em>locataire-a</em> en Running après correction</td><td class="pts">2</td></tr>
+          <tr><td class="ref">B-1</td><td>Champ fautif identifié à partir du message d'<em>apply</em></td><td class="pts">2</td></tr>
+          <tr><td class="ref">B-2</td><td>Pod <em>locataire-b</em> en Running après correction</td><td class="pts">2</td></tr>
+          <tr><td class="ref">C-1</td><td>Événement <em>FailedScheduling</em> retrouvé et cité</td><td class="pts">2</td></tr>
+          <tr><td class="ref">C-2</td><td>Composant responsable correctement nommé</td><td class="pts">3</td></tr>
+          <tr><td class="ref">D-1</td><td>Tableau de cartographie complété (7 lignes)</td><td class="pts">4</td></tr>
+          <tr><td class="ref">D-2</td><td>Composant absent identifié et justifié</td><td class="pts">1</td></tr>
+          <tr><td class="ref">E</td><td>Bonus : lien manifestes statiques ↔ nommage</td><td class="pts">2</td></tr>
+        </table>
+      </div>
+      <div class="lab" style="margin-top:22px;">
+        <span class="lab-badge">Auto-validation</span>
+        <h3>Trois commandes pour vérifier que tout est bon</h3>
+        <div class="code"><span class="cmt">Les trois locataires doivent etre Running, sans redemarrage</span>
+<span class="cmd">$</span> kubectl get pods
+<span class="cmt">Aucun evenement Warning ne doit subsister</span>
+<span class="cmd">$</span> kubectl get events --field-selector type=Warning
+<span class="cmt">Nettoyage de fin de journee : on libere la RAM pour demain</span>
+<span class="cmd">$</span> kubectl delete pods --all -n chantier</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Corrigé</span>
+      <h2>Le Corrigé</h2>
+      <div class="spoiler" id="sp1">
+        <span class="sp-btn" onclick="document.getElementById('sp1').classList.toggle('revealed')">Cliquer pour révéler le corrigé</span>
+        <div class="sp-body">
+          <div class="panel">
+            <p><strong>Dossier A , ErrImagePull puis ImagePullBackOff.</strong> L'image s'appelle <em>ngnix</em> au lieu de <em>nginx</em>. Le manifeste est valide, donc accepté : l'erreur n'apparaît qu'au moment où kubelet tente de télécharger l'image. La ligne à citer se trouve dans les Events : <em>Failed to pull image</em>. Correction : <em>image: nginx:1.25</em>.</p>
+            <p><strong>Dossier B , rejet immédiat par l'API server.</strong> La clé <em>containers</em> est alignée sur <em>spec</em> au lieu d'être indentée dedans. Le pod n'existe à aucun moment, d'où l'inutilité de <em>describe</em>. Le message d'erreur mentionne un champ inconnu au niveau racine et l'absence de <em>spec.containers</em>, qui est obligatoire.</p>
+            <p><strong>Dossier C , Pending, événement FailedScheduling.</strong> Le pod réclame 8 Gio de RAM et 3 cœurs, le nœud n'en a que 3 Gio et 2. Le responsable est le <em>kube-scheduler</em>. Il laisse volontairement le pod en attente plutôt que de le placer sur un nœud incapable de tenir la réservation : c'est un contrat, pas une estimation. Le pod resterait en Pending indéfiniment jusqu'à ce qu'un nœud adéquat apparaisse.</p>
+            <p><strong>Cartographie , le composant absent est le <em>kubelet</em>.</strong> Il ne peut pas être un pod : c'est lui qui <em>démarre</em> les pods. Il tourne comme service systemd directement sur le nœud. Les noms en <em>-minikube</em> désignent les <strong>pods statiques</strong> : kubelet lit <em>/etc/kubernetes/manifests/</em> au démarrage et crée ces pods lui-même, sans passer par le scheduler , d'où le suffixe fixe du nom du nœud. Les noms à suffixe aléatoire viennent d'un Deployment ou d'un DaemonSet, créés via l'API server.</p>
+          </div>
+        </div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Ce qu'il faut retenir</span><div class="maison-txt">Trois pannes, trois familles de diagnostic : l'erreur <em>refusée à l'écriture</em> (syntaxe, l'API server parle), l'erreur <em>de placement</em> (Pending, le scheduler parle dans les Events), l'erreur <em>d'exécution</em> (kubelet parle dans les Events puis dans les logs). Toutes les pannes du jour 4 rentreront dans l'une de ces trois cases.</div></div>
+      <a href="index.html" class="next-mod">Retour au sommaire ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 9;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

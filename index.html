@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Masterclass : Kubernetes avec Minikube</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --panel: rgba(255, 255, 255, 0.03); --panel-hover: rgba(255, 255, 255, 0.08);
+      --line: rgba(255, 255, 255, 0.1); --txt: #e6edf3; --muted: #8b949e;
+      --c-mod1: #58a6ff; --c-mod2: #22d3ee; --c-mod3: #3fb950; --c-mod4: #d2a8ff;
+      --c-mod5: #e3b341; --c-mod6: #f778ba; --c-mod7: #79c0ff; --c-mod8: #ffa657;
+      --c-mod9: #56d364; --c-mod10: #ff7b72; --c-mod11: #a5d6ff; --c-mod12: #f0883e;
+      --c-mod13: #bc8cff; --c-mod14: #39d353;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: radial-gradient(circle at 50% 0%, #1a2333 0%, var(--bg) 60%); color: var(--txt); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 60px 20px; }
+    .wrap { max-width: 1200px; width: 100%; }
+    header { text-align: center; margin-bottom: 50px; }
+    .badge-global { display: inline-block; padding: 6px 16px; background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.2); border-radius: 50px; color: var(--c-mod1); font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
+    h1 { font-family: var(--font-display); font-style: italic; font-size: clamp(3rem, 6vw, 5.5rem); line-height: 1.1; margin: 0 0 15px; background: linear-gradient(135deg, #ffffff, #8b949e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .subtitle { color: var(--muted); font-size: 1.15rem; max-width: 700px; margin: 0 auto; line-height: 1.6; }
+    .meta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+    .meta-pill { font-size: 0.78rem; color: var(--muted); padding: 5px 14px; border: 1px solid var(--line); border-radius: 50px; background: rgba(255,255,255,0.02); }
+    .meta-pill b { color: var(--txt); font-weight: 500; }
+    .day-header { display: flex; align-items: center; gap: 18px; margin: 50px 0 24px; }
+    .day-header:first-of-type { margin-top: 20px; }
+    .day-tag { font-family: var(--font-display); font-style: italic; font-size: 1.9rem; color: #fff; white-space: nowrap; }
+    .day-sub { font-size: 0.85rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+    .day-line { flex: 1; height: 1px; background: var(--line); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+    .card { display: flex; flex-direction: column; padding: 30px; border-radius: 24px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; color: inherit; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); backdrop-filter: blur(10px); position: relative; overflow: hidden; }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--accent); opacity: 0.5; transition: opacity 0.3s; }
+    .card:hover { transform: translateY(-8px); background: var(--panel-hover); border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
+    .card:hover::before { opacity: 1; }
+    .mod-num { font-weight: 700; font-size: 0.85rem; letter-spacing: 1px; color: var(--accent); margin-bottom: 12px; display: block; }
+    .card h2 { font-family: var(--font-display); font-size: 2rem; font-style: italic; margin: 0 0 12px; font-weight: 400; }
+    .card p { color: var(--muted); font-size: 0.95rem; line-height: 1.6; margin: 0; }
+    .card .keyword { display: inline-block; margin-top: 16px; font-size: 0.72rem; color: var(--accent); border: 1px solid var(--line); padding: 3px 10px; border-radius: 50px; opacity: 0.85; }
+    .card.challenge { border-style: dashed; border-color: rgba(255, 255, 255, 0.22); background: linear-gradient(140deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015)); }
+    .card.challenge::before { height: 100%; width: 4px; opacity: 0.7; }
+    .card.challenge:hover { border-style: solid; }
+    .card.challenge .mod-num { display: flex; align-items: center; gap: 10px; }
+    .card.challenge .mod-num::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+    .card.challenge h2 { font-style: normal; font-family: var(--font-body); font-size: 1.45rem; font-weight: 500; letter-spacing: -0.3px; }
+    .card.challenge .duree { font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, monospace; margin-top: 14px; display: block; }
+    footer { text-align: center; margin-top: 70px; color: var(--muted); font-size: 0.85rem; line-height: 1.7; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="badge-global">Cursus Kubernetes · Niveau Administrateur</div>
+      <h1>Masterclass Kubernetes</h1>
+      <p class="subtitle">Comprendre et administrer Kubernetes de A à Z, en imaginant le cluster comme une <em>grande résidence</em> : des immeubles (nœuds), des appartements (pods), un syndic (le plan de contrôle), une cave (le stockage) et un gardien à l'entrée (l'ingress). Quatre jours, tout en pratique, une seule machine.</p>
+      <div class="meta-row">
+        <span class="meta-pill"><b>Cible :</b> Ubuntu 22.04, 1 seule machine</span>
+        <span class="meta-pill"><b>Outil :</b> Minikube uniquement</span>
+        <span class="meta-pill"><b>Socle :</b> Prometheus · Grafana · Node Exporter</span>
+      </div>
+    </header>
+
+    <!-- JOUR 1 -->
+    <div class="day-header">
+      <span class="day-tag">Jour 1</span>
+      <span class="day-line"></span>
+      <span class="day-sub">Comprendre & Installer</span>
+    </div>
+    <div class="grid">
+      <a href="module-1.html" class="card" style="--accent: var(--c-mod1)">
+        <span class="mod-num">MODULE 01</span>
+        <h2>La Résidence Orchestrée</h2>
+        <p>Ce qu'est vraiment Kubernetes et le problème qu'il résout. Conteneurs, orchestration, la grande métaphore de la résidence et l'écosystème CNCF.</p>
+        <span class="keyword">Concepts · Vocabulaire</span>
+      </a>
+      <a href="module-2.html" class="card" style="--accent: var(--c-mod2)">
+        <span class="mod-num">MODULE 02</span>
+        <h2>L'Architecture du Cluster</h2>
+        <p>Le plan du quartier : plan de contrôle (API server, etcd, scheduler, controllers) et nœuds (kubelet, kube-proxy, runtime). Qui fait quoi et qui parle à qui.</p>
+        <span class="keyword">Control plane · Nodes</span>
+      </a>
+      <a href="module-3.html" class="card" style="--accent: var(--c-mod3)">
+        <span class="mod-num">MODULE 03</span>
+        <h2>Installer Minikube</h2>
+        <p>Construire la résidence sur Ubuntu 22.04 : Docker, kubectl, Minikube, démarrage, addons, et le tout premier pod. Chaque commande est fournie.</p>
+        <span class="keyword">Install · kubectl · 1er pod</span>
+      </a>
+      <a href="challenge-jour-1.html" class="card challenge" style="--accent: var(--c-mod1)">
+        <span class="mod-num">CHALLENGE · FIN DE JOURNÉE</span>
+        <h2>L'État des Lieux</h2>
+        <p>Trois appartements refusent d'ouvrir, chacun pour une raison différente. Diagnostiquer avec quatre commandes, réparer, puis cartographier le bureau de gestion.</p>
+        <span class="keyword">Diagnostic · /20</span>
+        <span class="duree">45 min · noté</span>
+      </a>
+    </div>
+
+    <!-- JOUR 2 -->
+    <div class="day-header">
+      <span class="day-tag">Jour 2</span>
+      <span class="day-line"></span>
+      <span class="day-sub">Faire tourner les applications</span>
+    </div>
+    <div class="grid">
+      <a href="module-4.html" class="card" style="--accent: var(--c-mod4)">
+        <span class="mod-num">MODULE 04</span>
+        <h2>Les Pods en Profondeur</h2>
+        <p>L'appartement, brique de base. Cycle de vie, multi-conteneurs, init containers, sondes (probes) de vie et de disponibilité, ressources CPU/mémoire.</p>
+        <span class="keyword">Pods · Probes · Init</span>
+      </a>
+      <a href="module-5.html" class="card" style="--accent: var(--c-mod5)">
+        <span class="mod-num">MODULE 05</span>
+        <h2>Déploiements & Mise à l'Échelle</h2>
+        <p>Le bail de gestion locative : Deployments, ReplicaSets, labels, namespaces, mises à jour progressives, rollback et autoscaling horizontal (HPA).</p>
+        <span class="keyword">Deployment · Scaling · HPA</span>
+      </a>
+      <a href="module-6.html" class="card" style="--accent: var(--c-mod6)">
+        <span class="mod-num">MODULE 06</span>
+        <h2>DaemonSets & Supervision</h2>
+        <p>Le détecteur de fumée dans chaque immeuble : DaemonSets, puis déploiement complet de la stack Prometheus + Grafana + Node Exporter.</p>
+        <span class="keyword">DaemonSet · Monitoring</span>
+      </a>
+      <a href="challenge-jour-2.html" class="card challenge" style="--accent: var(--c-mod5)">
+        <span class="mod-num">CHALLENGE · FIN DE JOURNÉE</span>
+        <h2>La Résidence sous Surveillance</h2>
+        <p>Un commerce qui ne doit jamais fermer : sondes, autoscaling, une rénovation qui tourne mal, un retour arrière, et des capteurs qui racontent toute l'histoire.</p>
+        <span class="keyword">Stack complète · /40</span>
+        <span class="duree">1 h 30 · noté</span>
+      </a>
+    </div>
+
+    <!-- JOUR 3 -->
+    <div class="day-header">
+      <span class="day-tag">Jour 3</span>
+      <span class="day-line"></span>
+      <span class="day-sub">Réseau, données & exposition</span>
+    </div>
+    <div class="grid">
+      <a href="module-7.html" class="card" style="--accent: var(--c-mod7)">
+        <span class="mod-num">MODULE 07</span>
+        <h2>Services & DNS</h2>
+        <p>L'adresse postale stable d'un appartement qui change sans cesse de locataire : ClusterIP, NodePort, LoadBalancer et le DNS interne de la résidence.</p>
+        <span class="keyword">Service · DNS</span>
+      </a>
+      <a href="module-8.html" class="card" style="--accent: var(--c-mod8)">
+        <span class="mod-num">MODULE 08</span>
+        <h2>Volumes & Stockage</h2>
+        <p>La cave qui survit aux déménagements : emptyDir, hostPath, PersistentVolume, PersistentVolumeClaim et StorageClass. Démo avec nginx et une page web.</p>
+        <span class="keyword">Volumes · PV/PVC</span>
+      </a>
+      <a href="module-9.html" class="card" style="--accent: var(--c-mod9)">
+        <span class="mod-num">MODULE 09</span>
+        <h2>ConfigMaps & Secrets</h2>
+        <p>Les consignes affichées et le coffre-fort. Application concrète : déployer WordPress et sa base MySQL avec une gestion propre des mots de passe.</p>
+        <span class="keyword">Config · Secrets · WordPress</span>
+      </a>
+      <a href="module-10.html" class="card" style="--accent: var(--c-mod10)">
+        <span class="mod-num">MODULE 10</span>
+        <h2>Ingress</h2>
+        <p>Le hall d'accueil et le tableau des sonnettes : un seul point d'entrée pour toute la résidence, avec routage par nom de domaine et par chemin.</p>
+        <span class="keyword">Ingress · Routage</span>
+      </a>
+      <a href="challenge-jour-3.html" class="card challenge" style="--accent: var(--c-mod6)">
+        <span class="mod-num">CHALLENGE · FIN DE JOURNÉE</span>
+        <h2>La Migration</h2>
+        <p>Un client, trois images, un cahier des charges et aucun manifeste. Traduire une application 3-tiers entière vers Kubernetes, et passer la recette d'acceptation.</p>
+        <span class="keyword">Cahier des charges · /60</span>
+        <span class="duree">2 h · noté</span>
+      </a>
+    </div>
+
+    <!-- JOUR 4 -->
+    <div class="day-header">
+      <span class="day-tag">Jour 4</span>
+      <span class="day-line"></span>
+      <span class="day-sub">Production, sécurité & avancé</span>
+    </div>
+    <div class="grid">
+      <a href="module-11.html" class="card" style="--accent: var(--c-mod11)">
+        <span class="mod-num">MODULE 11</span>
+        <h2>Planification Avancée</h2>
+        <p>Attribuer les appartements selon des règles : sélection de nœud, affinités et anti-affinités, souillures (taints) et tolérances. Qui habite où, et pourquoi.</p>
+        <span class="keyword">Scheduling · Affinity · Taints</span>
+      </a>
+      <a href="module-12.html" class="card" style="--accent: var(--c-mod12)">
+        <span class="mod-num">MODULE 12</span>
+        <h2>Sécurité</h2>
+        <p>Les badges d'accès et les digicodes entre ailes : authentification, autorisation RBAC, comptes de service et politiques réseau (Network Policies).</p>
+        <span class="keyword">RBAC · Network Policy</span>
+      </a>
+      <a href="module-13.html" class="card" style="--accent: var(--c-mod13)">
+        <span class="mod-num">MODULE 13</span>
+        <h2>Helm</h2>
+        <p>L'appartement meublé clé en main : le gestionnaire de paquets de Kubernetes. Charts, values, releases, mise à jour et retour arrière d'applications entières.</p>
+        <span class="keyword">Helm · Charts</span>
+      </a>
+      <a href="module-14.html" class="card" style="--accent: var(--c-mod14)">
+        <span class="mod-num">MODULE 14</span>
+        <h2>Dépannage, CRD & HA</h2>
+        <p>Quand une visite tourne mal : flux de diagnostic, étendre Kubernetes (CRD), haute disponibilité, et le grand questionnaire d'évaluation final.</p>
+        <span class="keyword">Debug · CRD · Quiz</span>
+      </a>
+      <a href="challenge-jour-4.html" class="card challenge" style="--accent: var(--c-mod10)">
+        <span class="mod-num">CHALLENGE · ÉPREUVE FINALE</span>
+        <h2>CKA Blanc</h2>
+        <p>Dix tâches au format de l'examen Certified Kubernetes Administrator, sur un cluster à deux nœuds. Chronométré, noté, documentation officielle autorisée.</p>
+        <span class="keyword">Examen blanc · /100</span>
+        <span class="duree">2 h · seuil de réussite 66 %</span>
+      </a>
+    </div>
+
+    <footer>
+      Steven "Perceval" LE BRIS<br>
+    </footer>
+  </div>
+</body>
+</html>

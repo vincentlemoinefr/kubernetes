@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Challenge Jour 2 · La Résidence sous Surveillance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #e3b341; --c2: #f778ba;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul, .panel ol { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(247,120,186,0.05); border: 1px solid rgba(247,120,186,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: 0.95rem; margin-top: 6px; }
+    table.spec th, table.spec td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.spec th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); font-weight: 700; }
+    table.spec td.ref { font-family: var(--font-mono); color: var(--c2); white-space: nowrap; font-size: 0.85rem; }
+    table.spec td.pts { text-align: right; font-family: var(--font-mono); color: var(--c1); white-space: nowrap; }
+    .spoiler { position: relative; margin-top: 6px; }
+    .sp-body { filter: blur(7px); transition: filter 0.45s; user-select: none; }
+    .spoiler.revealed .sp-body { filter: none; user-select: auto; }
+    .sp-btn { display: inline-block; cursor: pointer; margin-bottom: 14px; padding: 8px 20px; border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.78rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .sp-btn:hover { background: rgba(255,255,255,0.09); }
+    .timer { display: inline-block; font-family: var(--font-mono); font-size: 0.8rem; color: var(--c2); border: 1px solid var(--line); padding: 4px 14px; border-radius: 50px; margin-left: 10px; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Challenge Jour 2 · Modules 4 à 6<span class="timer">1 h 30</span></span>
+      <h1>La Résidence sous Surveillance</h1>
+      <div class="panel">
+        <p>La résidence accueille un nouveau commerce en rez-de-chaussée, et le propriétaire exige deux garanties : <strong>le magasin ne doit jamais fermer</strong>, même pendant les travaux de rénovation, et <strong>on doit pouvoir prouver</strong> qu'il est resté ouvert.</p>
+        <p>Vous allez donc déployer une application, l'équiper de sondes correctes, la faire grossir automatiquement sous l'affluence, tenter une rénovation qui tourne mal, revenir en arrière proprement , et installer les capteurs qui racontent toute l'histoire sur un écran.</p>
+        <p><strong>Aucun manifeste n'est fourni.</strong> Vous avez un cahier des charges, les modules 4 à 6 sous la main, et <em>kubectl explain</em> qui est votre meilleur ami. Travaillez dans le namespace <em>vitrine</em>.</p>
+      </div>
+      <div class="prod"><span class="prod-lbl">Une contrainte du jour 2</span><div class="prod-txt">Les <strong>Services n'existent pas encore</strong> dans votre cursus , c'est le module 7, demain matin. Vous accéderez donc à vos pods uniquement par <em>kubectl port-forward</em> et <em>kubectl exec</em>. C'est volontaire : demain, quand le Service arrivera, vous saurez exactement quel problème il résout.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Cahier des charges</span>
+      <h2>Partie A : La Vitrine</h2>
+      <div class="panel" style="padding:30px 34px;">
+        <table class="spec">
+          <tr><th>Réf.</th><th>Exigence</th></tr>
+          <tr><td class="ref">EX-01</td><td>Un <strong>Deployment</strong> nommé <em>vitrine</em> dans le namespace <em>vitrine</em>, image <em>nginx:1.25</em>, <strong>3 réplicas</strong>.</td></tr>
+          <tr><td class="ref">EX-02</td><td>Chaque conteneur déclare des <strong>requests</strong> (64 Mio / 50 m) et des <strong>limits</strong> (128 Mio / 200 m). Sans exception.</td></tr>
+          <tr><td class="ref">EX-03</td><td>Une <strong>readinessProbe</strong> HTTP sur <em>/</em> port 80, premier test après 5 s, répétée toutes les 5 s.</td></tr>
+          <tr><td class="ref">EX-04</td><td>Une <strong>livenessProbe</strong> distincte de la précédente, tolérant 3 échecs avant de conclure à la mort du conteneur.</td></tr>
+          <tr><td class="ref">EX-05</td><td>Une stratégie de mise à jour explicite : <em>RollingUpdate</em>, <strong>maxSurge 1</strong>, <strong>maxUnavailable 0</strong>. Le magasin ne ferme jamais.</td></tr>
+          <tr><td class="ref">EX-06</td><td>Un <strong>initContainer</strong> qui attend 5 secondes avant de laisser démarrer nginx, pour rendre visible la phase <em>Init</em> dans <em>get pods</em>.</td></tr>
+          <tr><td class="ref">EX-07</td><td>Les pods portent le label <em>app=vitrine</em> et <em>tier=front</em>.</td></tr>
+        </table>
+      </div>
+      <div class="maison"><span class="maison-lbl">Pourquoi maxUnavailable à zéro</span><div class="maison-txt">Avec <em>maxUnavailable: 0</em>, Kubernetes s'interdit de retirer un ancien appartement <em>avant</em> que le nouveau ne soit déclaré prêt. C'est exactement ce qui va rendre la panne de la partie C spectaculaire : le déploiement va se <em>figer</em> au lieu de tout casser. Retenez ce réglage, c'est celui qui sauve les mises en production du vendredi soir.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Cahier des charges</span>
+      <h2>Partie B : L'Affluence</h2>
+      <div class="lab">
+        <span class="lab-badge">Autoscaling · 8 points</span>
+        <h3>Faire grossir le magasin tout seul</h3>
+        <table class="spec">
+          <tr><th>Réf.</th><th>Exigence</th></tr>
+          <tr><td class="ref">EX-08</td><td>Un <strong>HPA</strong> sur le Deployment <em>vitrine</em> : minimum 2, maximum 6, cible <strong>50 % de CPU</strong>.</td></tr>
+          <tr><td class="ref">EX-09</td><td>Provoquer une charge réelle et <strong>observer</strong> la montée en réplicas. Noter le temps écoulé entre le début de la charge et l'apparition du premier pod supplémentaire.</td></tr>
+          <tr><td class="ref">EX-10</td><td>Arrêter la charge, et noter le temps de <strong>redescente</strong>. Il est bien plus long que la montée : expliquer pourquoi.</td></tr>
+        </table>
+        <div class="lab-section">
+          <div class="lab-section-title">Générer la charge sans Service , une boucle CPU dans un pod existant</div>
+          <div class="code"><span class="cmt">Le metrics-server doit repondre, sinon le HPA reste en unknown</span>
+<span class="cmd">$</span> kubectl top pods
+<span class="cmt">Faire chauffer UN pod : boucle infinie dans le conteneur</span>
+<span class="cmd">$</span> kubectl exec -it deploy/vitrine -- sh -c "while true; do :; done"
+<span class="cmt">Dans un SECOND terminal, regarder le HPA travailler</span>
+<span class="cmd">$</span> kubectl get hpa -w
+<span class="cmt">Et dans un TROISIEME, voir les pods apparaitre</span>
+<span class="cmd">$</span> kubectl get pods -w</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Attention</div>
+          <p>Coupez la boucle avec Ctrl+C, sinon elle consomme un cœur pour le reste de la journée. Si le HPA affiche <em>&lt;unknown&gt;</em> dans la colonne TARGETS, c'est que l'addon <em>metrics-server</em> n'est pas actif ou que les <em>requests</em> CPU manquent , le pourcentage est calculé <strong>par rapport aux requests</strong>, sans elles le calcul est impossible.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Cahier des charges</span>
+      <h2>Partie C : La Rénovation Ratée</h2>
+      <div class="lab">
+        <span class="lab-badge">Rollout & Rollback · 10 points</span>
+        <h3>Le moment le plus important de la journée</h3>
+        <p>Vous allez déployer une version 2 qui n'existe pas. Observez très attentivement ce qui se passe , et surtout ce qui <strong>ne</strong> se passe pas.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">Déclencher la panne</div>
+          <div class="code"><span class="cmt">Avant : noter le nombre de pods disponibles</span>
+<span class="cmd">$</span> kubectl get deploy vitrine
+<span class="cmt">Deployer une version qui n'existe pas sur le registre</span>
+<span class="cmd">$</span> kubectl set image deploy/vitrine nginx=nginx:1.99-inexistante
+<span class="cmt">Suivre le deroulement : il va se BLOQUER</span>
+<span class="cmd">$</span> kubectl rollout status deploy/vitrine
+<span class="cmd">$</span> kubectl get pods</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Les quatre questions , 2 points chacune</div>
+          <ol>
+            <li>Combien de pods de l'<strong>ancienne</strong> version tournent encore ? Le magasin est-il ouvert ou fermé ?</li>
+            <li>Combien de pods de la nouvelle version ont été créés, et pourquoi <strong>pas plus</strong> ? Quel réglage exact a provoqué cet arrêt ?</li>
+            <li>Que retourne <em>kubectl rollout status</em>, et au bout de combien de temps abandonne-t-il ?</li>
+            <li>Regardez <em>kubectl get rs</em>. Combien de ReplicaSets existent, et que contient chacun ?</li>
+          </ol>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Réparer , 2 points</div>
+          <div class="code"><span class="cmt">L'historique des revisions</span>
+<span class="cmd">$</span> kubectl rollout history deploy/vitrine
+<span class="cmt">Revenir a la version precedente</span>
+<span class="cmd">$</span> kubectl rollout undo deploy/vitrine
+<span class="cmt">Verifier le retour a la normale</span>
+<span class="cmd">$</span> kubectl rollout status deploy/vitrine</div>
+        </div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Le syndic avait prévu de rénover les trois appartements l'un après l'autre, en n'en fermant jamais aucun avant que le suivant ne soit habitable. Le premier chantier n'a jamais abouti , alors <em>tout s'est arrêté là</em>. Les locataires n'ont rien vu. C'est exactement le comportement qu'on veut en production, et c'est vous qui l'avez configuré à l'EX-05.</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Cahier des charges</span>
+      <h2>Partie D : Les Capteurs</h2>
+      <div class="panel" style="padding:30px 34px;">
+        <table class="spec">
+          <tr><th>Réf.</th><th>Exigence</th></tr>
+          <tr><td class="ref">EX-11</td><td>Un <strong>DaemonSet</strong> <em>node-exporter</em> dans le namespace <em>supervision</em>. Un pod par nœud, sans exception , y compris sur un nœud qui serait ajouté plus tard.</td></tr>
+          <tr><td class="ref">EX-12</td><td><strong>Prometheus</strong> déployé et capable de scraper le node-exporter. Vérifier dans son interface que la cible est <em>UP</em>.</td></tr>
+          <tr><td class="ref">EX-13</td><td><strong>Grafana</strong> déployé, source de données Prometheus câblée, accessible par <em>port-forward</em>.</td></tr>
+          <tr><td class="ref">EX-14</td><td>Un <strong>dashboard</strong> avec deux panneaux : la <strong>charge CPU du nœud</strong>, et le <strong>nombre de pods du Deployment vitrine</strong>.</td></tr>
+          <tr><td class="ref">EX-15</td><td><strong>Livrable :</strong> une capture d'écran du dashboard prise <em>pendant</em> que le HPA monte en charge, où l'on voit les deux courbes grimper ensemble.</td></tr>
+        </table>
+      </div>
+      <div class="lab" style="margin-top:22px;">
+        <span class="lab-badge">Accès</span>
+        <h3>Ouvrir les interfaces sans Service</h3>
+        <div class="code"><span class="cmt">Grafana : http://localhost:3000 (admin / admin)</span>
+<span class="cmd">$</span> kubectl port-forward -n supervision deploy/grafana 3000:3000
+<span class="cmt">Prometheus dans un autre terminal : http://localhost:9090</span>
+<span class="cmd">$</span> kubectl port-forward -n supervision deploy/prometheus 9090:9090
+<span class="cmt">Dans Prometheus, verifier la cible : Status > Targets</span>
+<span class="cmt">Requete utile pour le 2e panneau du dashboard :</span>
+<span class="cmt">   count(kube_pod_info{namespace="vitrine"})  ou plus simple :</span>
+<span class="cmt">   node_load1   pour la charge du noeud</span></div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Si le temps manque</span><div class="prod-txt">Vous avez déjà déployé cette stack à l'<strong>atelier 6</strong>. Rien n'interdit de réutiliser vos manifestes , l'exigence porte sur le <em>dashboard</em> et sur la capture, pas sur le fait de tout retaper. En revanche le DaemonSet doit bien être un DaemonSet, pas un Deployment à un réplica.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Évaluation</span>
+      <h2>Barème & Recette d'Acceptation</h2>
+      <div class="panel">
+        <p>Noté sur <strong>40 points</strong>. La recette ci-dessous est à exécuter par vous-même : si les quatre commandes répondent ce qui est attendu, l'essentiel est acquis.</p>
+        <table class="spec">
+          <tr><th>Partie</th><th>Attendu</th><th>Points</th></tr>
+          <tr><td class="ref">A</td><td>Deployment conforme aux 7 exigences (probes, ressources, stratégie, init, labels)</td><td class="pts">14</td></tr>
+          <tr><td class="ref">B</td><td>HPA fonctionnel, montée observée et chronométrée, redescente expliquée</td><td class="pts">8</td></tr>
+          <tr><td class="ref">C</td><td>Les quatre questions du rollout bloqué + rollback réussi</td><td class="pts">10</td></tr>
+          <tr><td class="ref">D</td><td>DaemonSet + Prometheus + Grafana + dashboard 2 panneaux</td><td class="pts">6</td></tr>
+          <tr><td class="ref">E</td><td>Capture d'écran livrée, prise pendant la montée en charge</td><td class="pts">2</td></tr>
+        </table>
+      </div>
+      <div class="lab" style="margin-top:22px;">
+        <span class="lab-badge">Recette</span>
+        <h3>Les quatre commandes de vérification</h3>
+        <div class="code"><span class="cmt">1. Les sondes sont-elles bien declarees ? (doit afficher 2 blocs)</span>
+<span class="cmd">$</span> kubectl get deploy vitrine -o yaml | grep -A5 -E "readinessProbe|livenessProbe"
+<span class="cmt">2. La strategie est-elle bien zero-interruption ?</span>
+<span class="cmd">$</span> kubectl get deploy vitrine -o jsonpath='{.spec.strategy}' ; echo
+<span class="cmt">3. Le HPA voit-il vraiment la charge ? (pas de &lt;unknown&gt;)</span>
+<span class="cmd">$</span> kubectl get hpa
+<span class="cmt">4. Le DaemonSet couvre-t-il tous les noeuds ? DESIRED doit = nb de noeuds</span>
+<span class="cmd">$</span> kubectl get ds -n supervision</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Corrigé</span>
+      <h2>Les Réponses Attendues</h2>
+      <div class="spoiler" id="sp1">
+        <span class="sp-btn" onclick="document.getElementById('sp1').classList.toggle('revealed')">Cliquer pour révéler le corrigé</span>
+        <div class="sp-body">
+          <div class="panel">
+            <p><strong>Partie C, question 1 , trois pods de l'ancienne version tournent toujours.</strong> Le magasin est resté ouvert du début à la fin. Aucun client n'a vu la panne.</p>
+            <p><strong>Question 2 , un seul pod de la nouvelle version a été créé</strong>, et il est bloqué en <em>ImagePullBackOff</em>. C'est <em>maxSurge: 1</em> qui autorise ce pod supplémentaire, et <em>maxUnavailable: 0</em> qui interdit d'en supprimer un ancien tant que le nouveau n'est pas <em>Ready</em>. Comme il ne le sera jamais, le déploiement se fige définitivement dans cet état.</p>
+            <p><strong>Question 3 , <em>rollout status</em> reste en attente</strong> puis abandonne au bout de 10 minutes par défaut (<em>progressDeadlineSeconds</em>), en signalant que le déploiement n'a pas progressé.</p>
+            <p><strong>Question 4 , deux ReplicaSets coexistent.</strong> L'ancien porte 3 pods sains, le nouveau en porte 1 en échec. C'est précisément ce qui rend le <em>rollout undo</em> instantané : l'ancien ReplicaSet n'a jamais été détruit, revenir en arrière consiste juste à le remonter à 3 et le nouveau à 0.</p>
+            <p><strong>Partie B, EX-10 , la redescente est lente par conception.</strong> Le HPA applique une fenêtre de stabilisation de 5 minutes à la baisse, contre 0 à la hausse. Monter vite coûte un peu d'argent ; descendre vite coûte une panne si la charge revient. En cas de trafic en dents de scie, une descente immédiate provoquerait un battement permanent.</p>
+            <p><strong>EX-11 , pourquoi un DaemonSet et pas un Deployment.</strong> Un Deployment à N réplicas ne garantit <em>pas</em> un pod par nœud : le scheduler pourrait en placer deux au même endroit. Le DaemonSet garantit la couverture exacte, et surtout il déploie <strong>automatiquement</strong> sur tout nouveau nœud. Vous le vérifierez au jour 4 en ajoutant un second nœud.</p>
+          </div>
+        </div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Nettoyage avant demain</span><div class="maison-txt">On libère la mémoire sans rien perdre : <em>kubectl scale deploy/vitrine --replicas=0 -n vitrine</em> et <em>kubectl scale deploy/prometheus deploy/grafana --replicas=0 -n supervision</em>. Les manifestes et les namespaces restent en place, vous les rallumerez en une commande.</div></div>
+      <a href="index.html" class="next-mod">Retour au sommaire ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 7;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

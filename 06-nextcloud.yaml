@@ -1,0 +1,239 @@
+# =============================================================================
+# STEP 6 - The web tier (EX-02, EX-03, EX-04, EX-06, EX-07, EX-10, EX-11)
+# =============================================================================
+# The delicate one. First boot runs the installer: it unpacks the application
+# into /var/www/html, creates its tables, writes its config. That takes 2 to
+# 4 minutes during which the app does not answer. This is NOT a failure.
+#
+# Apply:
+#   kubectl apply -f 06-nextcloud.yaml
+#
+# The pod now goes through two initContainers first, so it will show
+# Init:0/2 then Init:1/2 for a few seconds. To watch that phase:
+#   kubectl logs -f deploy/nextcloud -n cloud -c wait-for-mariadb
+#
+# Then follow the install in the LOGS, not in "get pods":
+#   kubectl logs -f deploy/nextcloud -n cloud -c nextcloud
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: cloud
+  labels:
+    app: nextcloud
+    tier: frontend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nextcloud
+  template:
+    metadata:
+      labels:
+        app: nextcloud
+        tier: frontend
+    spec:
+      # ---------------------------------------------------------------------
+      # Startup order (the trap on slide 4).
+      #
+      # Kubernetes guarantees nothing about which pod starts first. Left alone,
+      # Nextcloud can run its installer before MariaDB accepts connections,
+      # crash, and restart once or twice before it catches up. Acceptable, but
+      # ugly in the events, and on a slow machine it can cost several minutes.
+      #
+      # initContainers run to completion, one after the other, BEFORE any app
+      # container starts. If one never succeeds, the pod stays in Init:0/2 and
+      # says so plainly - which is a far better failure mode than a crash loop
+      # whose first cause has already scrolled out of the logs.
+      #
+      # Why "nc -z" on the Service name and not a real SQL query: the Service
+      # only has an endpoint once the database pod passes its own
+      # readinessProbe, and that probe runs a real query through
+      # healthcheck.sh. So a successful TCP connect here already means "MariaDB
+      # has answered a query". Doing the query again from this container would
+      # need the credential on a command line - see the note in the README
+      # about TEST 3 - for no extra guarantee.
+      #
+      # It does cost a few "Aborted connection ... unauthenticated" warnings in
+      # the MariaDB log while this loop runs. They stop as soon as the wait
+      # ends.
+      # ---------------------------------------------------------------------
+      initContainers:
+        - name: wait-for-mariadb
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "waiting for ${MYSQL_HOST}:3306 ..."
+              until nc -z -w 2 "${MYSQL_HOST}" 3306; do
+                echo "  still not accepting connections, retrying in 3s"
+                sleep 3
+              done
+              echo "${MYSQL_HOST}:3306 is up"
+          env:
+            - name: MYSQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: MYSQL_HOST
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "32Mi"
+
+        # Applicable, yes - but for a different reason. Nextcloud writes the
+        # Redis host into its config at install time and will start without
+        # the cache being up. Waiting here avoids a first boot that installs
+        # itself with a cache it cannot reach, then logs lock errors until
+        # someone notices. Redis starts in seconds, so this costs nothing.
+        - name: wait-for-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "waiting for ${REDIS_HOST}:6379 ..."
+              until nc -z -w 2 "${REDIS_HOST}" 6379; do
+                echo "  still not accepting connections, retrying in 3s"
+                sleep 3
+              done
+              echo "${REDIS_HOST}:6379 is up"
+          env:
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: REDIS_HOST
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "32Mi"
+
+      containers:
+        - name: nextcloud
+          image: nextcloud:29-apache
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            # --- non-sensitive: ConfigMap (EX-07) ---
+            - name: MYSQL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: MYSQL_HOST
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: MYSQL_USER
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: REDIS_HOST
+            - name: NEXTCLOUD_ADMIN_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: NEXTCLOUD_ADMIN_USER
+            - name: NEXTCLOUD_TRUSTED_DOMAINS
+              valueFrom:
+                configMapKeyRef:
+                  name: cloud-config
+                  key: NEXTCLOUD_TRUSTED_DOMAINS
+            # --- sensitive: Secret (EX-06) ---
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-secrets
+                  key: mysql-user-pw
+            - name: NEXTCLOUD_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-secrets
+                  key: admin-pw
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html
+            # Dropped into Apache's conf-enabled, which apache2.conf includes
+            # with "IncludeOptional conf-enabled/*.conf". subPath mounts the
+            # single file instead of replacing the whole directory, which
+            # would hide every other configuration snippet in the image.
+            - name: apache-config
+              mountPath: /etc/apache2/conf-enabled/servername.conf
+              subPath: servername.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          # ---------------------------------------------------------------
+          # EX-11 - the probe that decides whether this exercise works.
+          #
+          # initialDelaySeconds: 90   -> do not even ask during the install.
+          # failureThreshold: 30 x periodSeconds: 10 -> 5 more minutes of
+          #                              patience before giving up.
+          # The Host header is forced because Nextcloud rejects requests whose
+          # Host is not in its trusted list, and the kubelet probes the pod IP.
+          #
+          # There is deliberately NO livenessProbe. A liveness probe that
+          # fires during the installation kills the pod mid-install, the new
+          # pod restarts the install from a half-written volume, and you get
+          # an eternal restart loop with a configuration that is otherwise
+          # perfectly correct. Readiness gates traffic; liveness kills. Here
+          # only the first one is wanted.
+          # ---------------------------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: /status.php
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: nextcloud.local
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nextcloud-data
+        - name: apache-config
+          configMap:
+            name: nextcloud-apache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud
+  namespace: cloud
+  labels:
+    app: nextcloud
+spec:
+  # Still ClusterIP: the only door to the outside is the Ingress (EX-09).
+  type: ClusterIP
+  selector:
+    app: nextcloud
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

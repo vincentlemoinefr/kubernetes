@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 6 · DaemonSets et Supervision</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #f778ba; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .key { color: #79c0ff; }
+    .code .val { color: #a5d6ff; }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · Un pod partout</span>
+      <h1>DaemonSets &amp; Supervision</h1>
+      <div class="panel">
+        <p>Jusqu'ici, un Deployment place <em>N copies n'importe où</em>. Mais certains besoins sont différents : on veut <strong>exactement un pod sur chaque nœud</strong>, ni plus ni moins. C'est le rôle du <strong>DaemonSet</strong>.</p>
+        <p>Exemples typiques : un agent de logs, un agent réseau, ou , ce qui nous intéresse , un <strong>capteur de métriques</strong> sur chaque machine. On va s'en servir pour bâtir le socle de supervision de la formation : <em>Node Exporter + Prometheus + Grafana</em>.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Un DaemonSet, c'est le <em>détecteur de fumée installé dans chaque immeuble</em> : pas « 3 détecteurs quelque part », mais <em>un par immeuble, automatiquement</em>. Quand on construit un nouvel immeuble, son détecteur s'installe tout seul.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · La différence</span>
+      <h2>DaemonSet vs Deployment</h2>
+      <div class="panel"><p>Même famille, logique opposée sur le placement. À choisir selon la question : « combien de copies, et où ? »</p></div>
+      <div class="grid" style="margin-top:24px;">
+        <div class="mini-card"><h3>Deployment</h3><p>« Je veux <em>N copies</em>, peu importe où. » Le scheduler les répartit. Pour les applications classiques (web, API).</p></div>
+        <div class="mini-card"><h3>DaemonSet</h3><p>« Je veux <em>une copie par nœud</em>. » Pas de nombre à fixer : il suit le nombre de nœuds. Pour les agents système.</p></div>
+      </div>
+      <div class="panel" style="margin-top:24px;"><p>Kubernetes lui-même utilise des DaemonSets : <em>kube-proxy</em> et le plugin réseau (CNI) tournent ainsi sur chaque nœud. Vérifions-le :</p>
+      <div class="code"><span class="cmt">Les DaemonSets internes, tous namespaces</span>
+<span class="cmd">$</span> kubectl get daemonsets -A
+<span class="cmt">Sur Minikube : kube-proxy est un DaemonSet (1 pod, car 1 noeud)</span>
+<span class="cmd">$</span> kubectl get pods -n kube-system -l k8s-app=kube-proxy -o wide</div></div>
+      <div class="prod"><span class="prod-lbl">Minikube vs Kubernetes réel</span><div class="prod-txt">Sur notre Minikube mono-nœud, un DaemonSet = <em>1 seul pod</em> (1 immeuble). Sur un cluster de 50 nœuds, le <em>même</em> DaemonSet déploie automatiquement <em>50 pods</em>, un par immeuble. Le YAML est rigoureusement identique : seule la taille du quartier change.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · L'architecture de supervision</span>
+      <h2>Le Trio de la Surveillance</h2>
+      <div class="panel"><p>Notre socle d'observabilité (qu'on garde toute la formation) repose sur trois briques aux rôles complémentaires :</p></div>
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="mini-card"><div class="mini-num">01</div><h3>Node Exporter</h3><p>Un <em>DaemonSet</em>. Sur chaque nœud, il expose CPU, RAM, disque, réseau au format que Prometheus comprend. Le <em>capteur</em>.</p></div>
+        <div class="mini-card"><div class="mini-num">02</div><h3>Prometheus</h3><p>Un <em>Deployment</em>. Il interroge (« scrape ») les capteurs toutes les 15 s et stocke les mesures dans le temps. Le <em>collecteur</em>.</p></div>
+        <div class="mini-card"><div class="mini-num">03</div><h3>Grafana</h3><p>Un <em>Deployment</em>. Il lit Prometheus et dessine des tableaux de bord lisibles. L'<em>écran de contrôle</em>.</p></div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Node Exporter = les <em>capteurs</em> dans chaque immeuble (température, conso électrique). Prometheus = le <em>PC de sécurité</em> qui relève tous les capteurs en boucle et garde l'historique. Grafana = les <em>écrans muraux de la loge</em> qui affichent tout joliment pour le gardien.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Le capteur</span>
+      <h2>Node Exporter (DaemonSet)</h2>
+      <div class="panel"><p>On range tout dans un namespace <em>monitoring</em>. Voici le capteur : un DaemonSet (un pod par nœud) plus un Service pour que Prometheus le joigne par un nom stable. Sauvegardez ce fichier sous <em>node-exporter.yaml</em>.</p>
+      <div class="code"><span class="cmt">node-exporter.yaml</span>
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels: { app: node-exporter }
+  template:
+    metadata:
+      labels: { app: node-exporter }
+    spec:
+      hostNetwork: true            <span class="cmt"># voit le reseau reel du noeud</span>
+      hostPID: true
+      containers:
+      - name: node-exporter
+        image: prom/node-exporter:v1.8.2
+        args: ["--path.rootfs=/host"]
+        ports:
+        - containerPort: 9100
+        volumeMounts:
+        - name: rootfs
+          mountPath: /host
+          readOnly: true
+      volumes:
+      - name: rootfs
+        hostPath: { path: / }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels: { app: node-exporter }
+spec:
+  selector: { app: node-exporter }
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Le collecteur</span>
+      <h2>Prometheus (Config + Deployment)</h2>
+      <div class="panel"><p>Prometheus a besoin d'un fichier de config (quelles cibles scraper). On le fournit via un <strong>ConfigMap</strong> (module 9), monté dans le pod. Sauvegardez sous <em>prometheus.yaml</em>.</p>
+      <div class="code"><span class="cmt">prometheus.yaml</span>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']   <span class="cmt"># le Service ci-dessus</span>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: prometheus } }
+  template:
+    metadata: { labels: { app: prometheus } }
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.54.1
+        ports: [{ containerPort: 9090 }]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+      volumes:
+      - name: config
+        configMap: { name: prometheus-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: prometheus }
+  ports: [{ port: 9090, targetPort: 9090 }]</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · L'écran</span>
+      <h2>Grafana (avec source pré-câblée)</h2>
+      <div class="panel"><p>Pour éviter tout réglage manuel, on <strong>pré-branche</strong> Prometheus dans Grafana via un ConfigMap de provisioning. Sauvegardez sous <em>grafana.yaml</em>.</p>
+      <div class="code"><span class="cmt">grafana.yaml</span>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: grafana } }
+  template:
+    metadata: { labels: { app: grafana } }
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:11.2.0
+        ports: [{ containerPort: 3000 }]
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"          <span class="cmt"># mot de passe d'apprentissage</span>
+        volumeMounts:
+        - name: ds
+          mountPath: /etc/grafana/provisioning/datasources
+      volumes:
+      - name: ds
+        configMap: { name: grafana-datasources }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: grafana }
+  ports: [{ port: 3000, targetPort: 3000 }]</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · La voie de production</span>
+      <h2>En Vrai : kube-prometheus-stack</h2>
+      <div class="panel">
+        <p>Nos manifestes manuels sont parfaits pour <strong>comprendre les rouages</strong> : on voit le capteur, le collecteur, l'écran et comment ils se branchent. C'est l'objectif pédagogique.</p>
+        <p>En production, personne n'écrit ces YAML à la main. On installe le tout via <strong>Helm</strong> (module 13) avec un seul paquet officiel, <em>kube-prometheus-stack</em>, qui ajoute en bonus : Alertmanager, des dizaines de dashboards prêts, et la découverte automatique des cibles.</p>
+        <div class="code"><span class="cmt">Aperçu (on le fera vraiment au module 13)</span>
+<span class="cmd">$</span> helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+<span class="cmd">$</span> helm install kube-prom prometheus-community/kube-prometheus-stack \
+    --namespace monitoring --create-namespace</div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Minikube vs Kubernetes réel</span><div class="prod-txt">Notre Prometheus scrape le capteur via une cible <em>statique</em> (<em>node-exporter:9100</em>) : ça marche car il n'y a qu'un nœud. Sur un grand cluster, on n'écrit pas la liste à la main : Prometheus <em>découvre tout seul</em> les capteurs via l'API Kubernetes (service discovery). C'est exactement ce que kube-prometheus-stack configure pour vous.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Un DaemonSet garantit un pod par nœud et déploie tout seul un pod sur chaque nouveau nœud ajouté.</div></div>
+            <div class="flip-back"><div class="b-title">Un capteur par immeuble</div><p>C'est sa définition. On ne fixe pas de nombre de réplicas : il suit le nombre de nœuds, automatiquement.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">C'est Grafana qui collecte et stocke les métriques dans le temps.</div></div>
+            <div class="flip-back"><div class="b-title">Rôles distincts</div><p>Prometheus collecte et stocke. Grafana ne fait que <em>lire</em> Prometheus pour l'afficher. Node Exporter, lui, expose les mesures brutes.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">Sur un Minikube mono-nœud, le DaemonSet node-exporter ne crée qu'un seul pod.</div></div>
+            <div class="flip-back"><div class="b-title">Un nœud, un pod</div><p>Un seul immeuble > un seul capteur. Le même YAML créerait 50 pods sur un cluster de 50 nœuds.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">Prometheus doit obligatoirement découvrir ses cibles via l'API ; on ne peut pas lui donner une liste fixe.</div></div>
+            <div class="flip-back"><div class="b-title">Les deux existent</div><p>La cible <em>statique</em> (notre cas) est valide et simple. La découverte automatique est juste plus pratique à grande échelle.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Atelier</span>
+      <h2>Atelier 6 : Déployer le Socle de Supervision</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 06 · Entièrement guidé</span>
+        <h3>Du capteur à l'écran, en 5 minutes</h3>
+        <p>Sauvegardez les trois fichiers des étapes 4, 5 et 6 (<em>node-exporter.yaml</em>, <em>prometheus.yaml</em>, <em>grafana.yaml</em>) dans un même dossier, puis :</p>
+        <div class="lab-section">
+          <div class="lab-section-title">1 · Créer le namespace et tout déployer</div><div class="code"><span class="cmd">$</span> kubectl create namespace monitoring
+<span class="cmd">$</span> kubectl apply -f node-exporter.yaml
+<span class="cmd">$</span> kubectl apply -f prometheus.yaml
+<span class="cmd">$</span> kubectl apply -f grafana.yaml
+<span class="cmt">Attendre que les 3 pods soient Running</span>
+<span class="cmd">$</span> kubectl get pods -n monitoring -w   <span class="cmt"># Ctrl+C pour sortir</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">2 · Ouvrir Prometheus et vérifier les cibles</div><div class="code"><span class="cmt">Ouvre Prometheus dans le navigateur</span>
+<span class="cmd">$</span> minikube service prometheus -n monitoring
+<span class="cmt">Dans l'interface : menu Status &gt; Targets</span>
+<span class="cmt">-> les jobs 'prometheus' et 'node-exporter' doivent etre 'UP'</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">3 · Ouvrir Grafana et afficher un tableau de bord</div><div class="code"><span class="cmd">$</span> minikube service grafana -n monitoring
+<span class="cmt">Connexion : utilisateur 'admin' / mot de passe 'admin'</span>
+<span class="cmt">La source Prometheus est deja branchee. Importer un dashboard :</span>
+<span class="cmt">Menu Dashboards &gt; New &gt; Import &gt; coller l'ID 1860 &gt; Load</span>
+<span class="cmt">-> choisir la source 'Prometheus' &gt; Import</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Validation</div>
+          <p>Réussi si Prometheus affiche ses deux cibles en <em>UP</em>, et si le dashboard 1860 (« Node Exporter Full ») dans Grafana montre des courbes vivantes de CPU, RAM et disque de votre machine. <strong>Vous avez un socle de supervision opérationnel</strong>, qu'on réutilisera. Pour tout retirer : <em>kubectl delete namespace monitoring</em>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide" data-n="10">
+    <div class="content">
+      <span class="step-label">Étape 10 · Conclusion</span>
+      <h2>Récapitulatif du Module 6</h2>
+      <div class="panel"><ul>
+        <li><strong>DaemonSet :</strong> un pod par nœud, automatiquement , pour les agents système (logs, réseau, métriques).</li>
+        <li><strong>Le trio d'observabilité :</strong> Node Exporter (capteur) > Prometheus (collecteur) > Grafana (écran).</li>
+        <li><strong>Node Exporter est un DaemonSet ;</strong> Prometheus et Grafana sont des Deployments.</li>
+        <li><strong>On a relié les briques</strong> via Services, ConfigMaps et un provisioning de source , toutes les notions à venir, déjà à l'œuvre.</li>
+        <li><strong>En prod :</strong> on installe tout via Helm (kube-prometheus-stack) plutôt qu'à la main.</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">La résidence a maintenant ses capteurs, son PC de sécurité et ses écrans. On a remarqué un détail crucial : tout le monde se joint par un <em>nom</em> stable (<em>prometheus</em>, <em>node-exporter</em>), jamais par une adresse. C'est l'objet du prochain module : les Services et le DNS.</div></div>
+      <a href="module-7.html" class="next-mod">Module 7 : Services &amp; DNS ></a>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 10;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

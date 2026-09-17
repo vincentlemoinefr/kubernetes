@@ -1,0 +1,23 @@
+# =============================================================================
+# STEP 1 - The namespace (EX-01)
+# =============================================================================
+# Everything in this challenge lives inside a dedicated namespace called
+# "cloud". A namespace is just a scoping boundary: names are unique *inside*
+# it, and internal DNS names are built from it
+# (mariadb.cloud.svc.cluster.local).
+#
+# Apply:
+#   kubectl apply -f 01-namespace.yaml
+#
+# Then make it your default context so you can stop typing "-n cloud":
+#   kubectl config set-context --current --namespace=cloud
+#
+# Check:
+#   kubectl get ns cloud
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloud
+  labels:
+    name: cloud

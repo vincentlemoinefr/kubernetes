@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cluster Réel kubeadm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #22d3ee; --c2: #e3b341;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.13; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1150px; padding: 40px; max-height: 86vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3rem, 4.6vw, 4.2rem); font-style: italic; line-height: 1.05; margin: 0 0 26px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.2rem, 3.6vw, 2.9rem); font-style: italic; margin: 0 0 22px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 30px 34px; line-height: 1.75; font-size: 1.05rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 18px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul, .panel ol { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 10px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .warn { background: rgba(255,123,114,0.07); border: 1px solid rgba(255,123,114,0.3); border-left: 3px solid #ff7b72; border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .warn-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #ff7b72; margin-bottom: 8px; }
+    .warn-txt { line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .warn-txt em { color: #fff; font-style: normal; font-weight: 600; }
+    .tip { background: rgba(227,179,65,0.05); border: 1px solid rgba(227,179,65,0.2); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .tip-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; }
+    .tip-txt { line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .tip-txt em { color: #fff; font-style: normal; font-weight: 600; }
+    .host { display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 12px; border-radius: 50px; margin-bottom: 10px; }
+    .host.both { background: rgba(34,211,238,0.12); border: 1px solid rgba(34,211,238,0.4); color: var(--c1); }
+    .host.master { background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.4); color: #3fb950; }
+    .host.worker { background: rgba(210,168,255,0.12); border: 1px solid rgba(210,168,255,0.4); color: #d2a8ff; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.55); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.84rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.6; margin-top: 8px; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .var { color: var(--c2); font-weight: 600; }
+    .block { margin-bottom: 22px; }
+    .block-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 8px; opacity: 0.9; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: 0.93rem; margin-top: 6px; }
+    table.spec th, table.spec td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.spec th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); font-weight: 700; }
+    table.spec td.ref { font-family: var(--font-mono); color: var(--c2); white-space: nowrap; font-size: 0.85rem; }
+    .fill { display: inline-block; min-width: 140px; border-bottom: 1px dashed var(--c2); color: var(--c2); font-family: var(--font-mono); }
+    .demo { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 22px; padding: 28px 32px; box-shadow: 0 0 60px rgba(0,0,0,0.3); margin-bottom: 20px; }
+    .demo-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+    .demo h3 { font-family: var(--font-display); font-style: italic; font-size: 1.45rem; margin: 0 0 14px; color: #fff; font-weight: 400; }
+    .demo p { color: #c9d1d9; line-height: 1.7; margin: 0 0 10px; font-size: 1rem; }
+    .demo ul, .demo ol { margin: 0 0 10px; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 0.98rem; }
+    .say { background: rgba(255,255,255,0.03); border-left: 2px solid var(--c2); padding: 12px 18px; border-radius: 8px; font-style: italic; color: #e6edf3; margin: 12px 0; line-height: 1.7; }
+    .nav { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; background: rgba(13, 17, 23, 0.75); padding: 11px 26px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 8px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 22px; left: 22px; color: var(--muted); text-decoration: none; font-size: 0.82rem; padding: 7px 15px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Annexe · Au-delà de Minikube</span>
+      <h1>Le Cluster Réel</h1>
+      <div class="panel">
+        <p>Pendant quatre jours, vous travaillez sur Minikube. C'est un vrai cluster Kubernetes, monté par kubeadm, et tout ce que vous y apprenez est transposable. Mais Minikube vous rend aussi <strong>trois services silencieux</strong> : il installe le réseau, il fournit une classe de stockage, et il simule un répartiteur de charge. En production, personne ne fait ça pour vous.</p>
+        <p>Cette annexe monte un cluster <strong>à partir de deux machines nues</strong>, avec kubeadm, exactement comme on le ferait chez un client. Vous y verrez ce que Minikube masque : un cluster qui refuse de fonctionner tant qu'on ne lui a pas installé de réseau, une demande de stockage qui reste bloquée faute de provisionneur, un vrai service exposé sur le réseau de l'entreprise , et une machine qui tombe.</p>
+        <p>Comptez <strong>45 minutes</strong> la première fois. Chaque commande est fournie, et chaque étape explique <em>pourquoi</em> elle existe , c'est là que se trouve l'essentiel.</p>
+        <table class="spec">
+          <tr><th>Rôle</th><th>Nom d'hôte</th><th>IP</th><th>Ressources</th></tr>
+          <tr><td class="ref">Plan de contrôle</td><td class="ref">k8s-master</td><td><span class="fill">192.168.26.___</span></td><td>2 vCPU minimum</td></tr>
+          <tr><td class="ref">Worker</td><td class="ref">k8s-worker1</td><td><span class="fill">192.168.26.___</span></td><td>2 vCPU minimum</td></tr>
+        </table>
+      </div>
+      <div class="tip"><span class="tip-lbl">Trois réseaux, à ne jamais confondre</span><div class="tip-txt">Un cluster manipule <strong>trois espaces d'adresses distincts</strong>, et c'est la source de confusion numéro un quand on débute. Les <em>machines</em> ont des adresses sur le réseau physique , ici <strong>192.168.26.0/24</strong>, qu'il faut adapter au vôtre. Les <em>pods</em> vivent sur un réseau virtuel entièrement interne au cluster , ici <strong>10.244.0.0/16</strong>. Les <em>Services</em> occupent un troisième espace, virtuel lui aussi , <strong>10.96.0.0/12</strong> par défaut, que kubeadm gère sans qu'on ait à y toucher. Une adresse de pod n'existe nulle part sur votre réseau, et une adresse de machine n'est jamais attribuée à un pod. Quand vous verrez des 192.168.26.x dans les commandes qui suivent, ce sont <strong>toujours</strong> des adresses de machines.</div></div>
+      <div class="warn"><span class="warn-lbl">Et c'est exactement pour ça que la plage par défaut est un piège</span><div class="warn-txt">Le réseau de pods par défaut de Calico est <em>192.168.0.0/16</em>. Si votre réseau physique est lui aussi en 192.168.x.x , ce qui est le cas de la quasi-totalité des réseaux d'entreprise et de bureau , cette plage <strong>englobe votre propre LAN</strong>. Les deux premiers espaces ci-dessus se recouvrent, et le cluster se met à router vers son réseau interne les adresses de vos propres machines : plus de passerelle, plus de DNS, et des pannes parfaitement incompréhensibles. On force donc partout <em>10.244.0.0/16</em>, qui ne croise rien. C'est le piège numéro un de ce montage, et il ne pardonne pas.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Phase 0 · Les deux machines</span>
+      <h2>Préparer le Terrain</h2>
+      <span class="host both">à faire sur les DEUX VM</span>
+      <div class="block">
+        <div class="block-title">1 · Identité et résolution de noms</div>
+        <div class="code"><span class="cmt"># Sur le futur plan de controle :</span>
+<span class="cmd">$</span> sudo hostnamectl set-hostname k8s-master
+<span class="cmt"># Sur le futur worker :</span>
+<span class="cmd">$</span> sudo hostnamectl set-hostname k8s-worker1
+
+<span class="cmt"># Puis sur les DEUX, remplacer par vos IP reelles :</span>
+<span class="cmd">$</span> sudo tee -a /etc/hosts &lt;&lt;'EOF'
+<span class="var">192.168.26.XXX</span>  k8s-master
+<span class="var">192.168.26.YYY</span>  k8s-worker1
+EOF
+<span class="cmt"># Verifier que chacune voit l'autre par son nom</span>
+<span class="cmd">$</span> ping -c2 k8s-worker1</div>
+      </div>
+      <div class="block">
+        <div class="block-title">2 · Désactiver le swap , kubeadm refuse de démarrer sinon</div>
+        <div class="code"><span class="cmd">$</span> sudo swapoff -a
+<span class="cmd">$</span> sudo sed -i '/ swap / s/^/#/' /etc/fstab
+<span class="cmd">$</span> free -h    <span class="cmt"># la ligne Swap doit afficher 0</span></div>
+      </div>
+      <div class="block">
+        <div class="block-title">3 · Modules noyau et routage , sans ça, le réseau des pods ne fonctionne pas</div>
+        <div class="code"><span class="cmd">$</span> sudo tee /etc/modules-load.d/k8s.conf &lt;&lt;'EOF'
+overlay
+br_netfilter
+EOF
+<span class="cmd">$</span> sudo modprobe overlay &amp;&amp; sudo modprobe br_netfilter
+
+<span class="cmd">$</span> sudo tee /etc/sysctl.d/k8s.conf &lt;&lt;'EOF'
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+<span class="cmd">$</span> sudo sysctl --system
+<span class="cmt"># Verifier les 3 valeurs a 1</span>
+<span class="cmd">$</span> sysctl net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Phase 1 · Le moteur de conteneurs</span>
+      <h2>containerd</h2>
+      <span class="host both">à faire sur les DEUX VM</span>
+      <div class="block">
+        <div class="block-title">Installation depuis le dépôt Docker</div>
+        <div class="code"><span class="cmd">$</span> sudo apt-get update
+<span class="cmd">$</span> sudo apt-get install -y ca-certificates curl gnupg apt-transport-https
+<span class="cmd">$</span> sudo install -m 0755 -d /etc/apt/keyrings
+<span class="cmd">$</span> curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+<span class="cmd">$</span> echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/ubuntu jammy stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list
+<span class="cmd">$</span> sudo apt-get update &amp;&amp; sudo apt-get install -y containerd.io</div>
+      </div>
+      <div class="block">
+        <div class="block-title">Configuration , l'étape que tout le monde rate</div>
+        <div class="code"><span class="cmt"># Generer une configuration par defaut</span>
+<span class="cmd">$</span> sudo mkdir -p /etc/containerd
+<span class="cmd">$</span> containerd config default | sudo tee /etc/containerd/config.toml &gt;/dev/null
+<span class="cmt"># Basculer sur le gestionnaire de cgroups systemd</span>
+<span class="cmd">$</span> sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+<span class="cmt"># Verifier que la valeur est bien passee a true</span>
+<span class="cmd">$</span> grep SystemdCgroup /etc/containerd/config.toml
+<span class="cmd">$</span> sudo systemctl restart containerd &amp;&amp; sudo systemctl enable containerd
+<span class="cmd">$</span> sudo systemctl is-active containerd</div>
+      </div>
+      <div class="warn"><span class="warn-lbl">Pourquoi SystemdCgroup est critique</span><div class="warn-txt">Ubuntu 22.04 utilise <em>systemd</em> comme gestionnaire de cgroups. Si containerd utilise <em>cgroupfs</em> pendant que kubelet utilise systemd, vous obtenez deux gestionnaires qui se disputent les mêmes ressources. Symptôme : le cluster démarre, puis les pods redémarrent aléatoirement sous charge, sans erreur claire. C'est la panne la plus pénible de ce montage, et elle n'apparaît qu'au bout de plusieurs minutes de fonctionnement , typiquement en pleine démo.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Phase 2 · Les paquets Kubernetes</span>
+      <h2>kubeadm, kubelet, kubectl</h2>
+      <span class="host both">à faire sur les DEUX VM</span>
+      <div class="warn"><span class="warn-lbl">Le dépôt a changé</span><div class="warn-txt">L'ancien dépôt <em>apt.kubernetes.io</em> / <em>packages.cloud.google.com</em> est <strong>hors service</strong>. Tous les tutoriels qui traînent encore en ligne sont périmés et échouent avec une erreur 403. Le dépôt actuel est <em>pkgs.k8s.io</em>, et il est <strong>séparé par version mineure</strong> : l'URL contient le numéro de version, il n'existe pas de dépôt « toutes versions ».</div></div>
+      <div class="block">
+        <div class="block-title">Choisir la version , à figer avant de commencer</div>
+        <div class="code"><span class="cmt"># Alignez cette valeur sur la version de vos Minikube.</span>
+<span class="cmt"># Sur le poste de demo : kubectl version</span>
+<span class="cmd">$</span> K8S_VERSION=<span class="var">v1.__</span>     <span class="cmt"># ex : v1.31 , mineure uniquement, pas de patch</span></div>
+      </div>
+      <div class="block">
+        <div class="block-title">Installation et gel des versions</div>
+        <div class="code"><span class="cmd">$</span> curl -fsSL https://pkgs.k8s.io/core:/stable:/$K8S_VERSION/deb/Release.key | \
+    sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+<span class="cmd">$</span> echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+https://pkgs.k8s.io/core:/stable:/$K8S_VERSION/deb/ /" | \
+    sudo tee /etc/apt/sources.list.d/kubernetes.list
+<span class="cmd">$</span> sudo apt-get update
+<span class="cmd">$</span> sudo apt-get install -y kubelet kubeadm kubectl
+<span class="cmt"># GELER les versions : une mise a jour auto casserait le cluster</span>
+<span class="cmd">$</span> sudo apt-mark hold kubelet kubeadm kubectl
+<span class="cmd">$</span> kubeadm version</div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Pré-télécharger les images , gain de temps</span><div class="tip-txt">Sur le master, avant l'init : <em>sudo kubeadm config images pull</em>. Les images du plan de contrôle arrivent pendant que vous faites autre chose, et l'<em>init</em> ne prend plus que quelques secondes , appréciable si vous le montrez en direct.</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Phase 3 · Naissance du cluster</span>
+      <h2>kubeadm init</h2>
+      <span class="host master">uniquement sur k8s-master</span>
+      <div class="block">
+        <div class="block-title">La commande , remplacez l'IP par celle du master</div>
+        <div class="code"><span class="cmd">$</span> sudo kubeadm init \
+    --pod-network-cidr=<span class="var">10.244.0.0/16</span> \
+    --apiserver-advertise-address=<span class="var">192.168.26.XXX</span> \
+    --node-name=k8s-master</div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Les deux adresses de cette commande n'ont rien à voir</span><div class="tip-txt"><em>--pod-network-cidr=10.244.0.0/16</em> déclare le réseau <strong>virtuel</strong> dans lequel les pods recevront leurs adresses. Il n'existe que dans le cluster. <em>--apiserver-advertise-address</em> est au contraire l'adresse <strong>physique</strong> de cette machine sur votre LAN , celle que les autres nœuds contacteront pour joindre l'API server. Les voir côte à côte dans la même commande est déroutant la première fois ; elles répondent à deux questions opposées.</div></div>
+      <div class="warn"><span class="warn-lbl">Copiez la sortie MAINTENANT</span><div class="warn-txt">Les dernières lignes contiennent la commande <em>kubeadm join</em> avec son token. <strong>Gardez-la dans un fichier</strong> : le token expire au bout de 24 h. Si vous la perdez, on la régénère (voir Phase 5).</div></div>
+      <div class="block">
+        <div class="block-title">Configurer kubectl pour votre utilisateur</div>
+        <div class="code"><span class="cmd">$</span> mkdir -p $HOME/.kube
+<span class="cmd">$</span> sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+<span class="cmd">$</span> sudo chown $(id -u):$(id -g) $HOME/.kube/config
+<span class="cmt"># Le noeud apparait, mais en NotReady : c'est NORMAL, il manque le reseau</span>
+<span class="cmd">$</span> kubectl get nodes
+<span class="cmt"># CoreDNS est en Pending pour la meme raison</span>
+<span class="cmd">$</span> kubectl get pods -n kube-system</div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Arrêtez-vous une minute sur cet état</span><div class="tip-txt">Le cluster vient de naître et il est <em>NotReady</em>. Ses CoreDNS sont bloqués en <em>Pending</em>. Ce n'est pas une panne : c'est la preuve que <strong>Kubernetes ne fournit pas de réseau</strong>. Il définit une interface, le CNI, et laisse à chacun le soin de brancher l'implémentation de son choix , Calico, Cilium, Flannel, ou celle de son fournisseur cloud. Tant que rien n'est branché, aucun pod ne peut obtenir d'adresse, donc aucun pod ne peut démarrer, donc le nœud se déclare inapte. Sur Minikube, cette étape est faite pour vous avant même que la main ne vous soit rendue : vous n'avez jamais vu un cluster dans cet état.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Phase 4 · Le réseau</span>
+      <h2>Calico</h2>
+      <span class="host master">uniquement sur k8s-master</span>
+      <div class="block">
+        <div class="block-title">1 · L'opérateur Tigera</div>
+        <div class="code"><span class="cmt"># Verifiez la version courante sur docs.tigera.io avant de lancer</span>
+<span class="cmd">$</span> kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/<span class="var">v3.28.2</span>/manifests/tigera-operator.yaml
+<span class="cmd">$</span> kubectl get pods -n tigera-operator</div>
+      </div>
+      <div class="block">
+        <div class="block-title">2 · La configuration , avec NOTRE plage, pas celle par défaut</div>
+        <div class="code"><span class="cmd">$</span> cat &lt;&lt;'EOF' | kubectl create -f -
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    ipPools:
+    - blockSize: 26
+      cidr: 10.244.0.0/16
+      encapsulation: VXLANCrossSubnet
+      natOutgoing: Enabled
+      nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
+EOF</div>
+      </div>
+      <div class="block">
+        <div class="block-title">3 · Attendre et vérifier , 2 à 3 minutes</div>
+        <div class="code"><span class="cmd">$</span> kubectl get pods -n calico-system -w
+<span class="cmt"># Quand tout est Running : le noeud passe Ready</span>
+<span class="cmd">$</span> kubectl get nodes
+<span class="cmt"># Confirmer que la plage appliquee est la bonne</span>
+<span class="cmd">$</span> kubectl get ippools -o jsonpath='{.items[*].spec.cidr}' ; echo</div>
+      </div>
+      <div class="warn"><span class="warn-lbl">Contrôle obligatoire</span><div class="warn-txt">La dernière commande <strong>doit</strong> afficher <em>10.244.0.0/16</em>. Si elle affiche <em>192.168.0.0/16</em>, arrêtez tout : le cluster va entrer en conflit avec votre réseau physique. Supprimez l'Installation, recréez-la avec le bon CIDR, et redémarrez les pods de <em>calico-system</em>.</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Phase 5 · Le second immeuble</span>
+      <h2>Rattacher le Worker</h2>
+      <span class="host worker">sur k8s-worker1</span>
+      <div class="block">
+        <div class="block-title">La commande récupérée à la Phase 3</div>
+        <div class="code"><span class="cmd">$</span> sudo kubeadm join <span class="var">192.168.26.XXX</span>:6443 \
+    --token <span class="var">&lt;token&gt;</span> \
+    --discovery-token-ca-cert-hash sha256:<span class="var">&lt;hash&gt;</span></div>
+      </div>
+      <div class="block">
+        <div class="block-title">Token perdu ou expiré , depuis le master</div>
+        <div class="code"><span class="cmt"># Regenere la commande complete, prete a coller</span>
+<span class="cmd">$</span> kubeadm token create --print-join-command</div>
+      </div>
+      <div class="block">
+        <div class="block-title">Vérification , depuis le master</div>
+        <div class="code"><span class="cmd">$</span> kubectl get nodes -o wide
+<span class="cmt"># Les deux noeuds Ready. Le worker n'a PAS de role : c'est normal.</span>
+<span class="cmt"># Optionnel, purement cosmetique mais joli en demo :</span>
+<span class="cmd">$</span> kubectl label node k8s-worker1 node-role.kubernetes.io/worker=</div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Ce que contient réellement cette commande</span><div class="tip-txt">Elle tient en trois éléments. L'<strong>adresse du plan de contrôle</strong> et son port 6443, pour savoir à qui parler. Le <strong>token</strong>, qui prouve au cluster que cette machine a le droit de le rejoindre , il expire au bout de 24 heures, par sécurité. Et le <strong>hash du certificat d'autorité</strong>, qui joue le rôle inverse : c'est le nœud qui vérifie qu'il parle bien au vrai plan de contrôle et non à un imposteur qui aurait pris son adresse. L'authentification va dans les deux sens, et c'est volontaire.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Phase 6 · Les extras</span>
+      <h2>Ce que Minikube Offrait Gratuitement</h2>
+      <span class="host master">uniquement sur k8s-master</span>
+      <div class="panel" style="padding:24px 28px; margin-bottom:18px;">
+        <p>Un cluster kubeadm nu n'a <strong>ni contrôleur d'entrée, ni LoadBalancer, ni classe de stockage</strong>. Minikube fournit les trois via ses addons. C'est précisément ce qui rend ce cluster intéressant en démo , mais il faut les installer.</p>
+      </div>
+      <div class="block">
+        <div class="block-title">1 · MetalLB , un vrai LoadBalancer sur votre LAN</div>
+        <p style="color:#c9d1d9; font-size:0.98rem; line-height:1.7; margin:0 0 8px;">Attention au troisième espace d'adresses : la plage ci-dessous est sur le <strong>réseau physique</strong>, pas sur celui des pods. MetalLB distribue de vraies adresses de votre LAN, joignables depuis n'importe quelle machine du réseau. Elles doivent donc être libres <em>et</em> hors de la plage distribuée par votre DHCP.</p>
+        <div class="code"><span class="cmd">$</span> kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/<span class="var">v0.14.8</span>/config/manifests/metallb-native.yaml
+<span class="cmd">$</span> kubectl wait --for=condition=ready pod -l app=metallb -n metallb-system --timeout=180s
+
+<span class="cmt"># La plage d'IP : DOIT etre libre et HORS de votre plage DHCP</span>
+<span class="cmd">$</span> cat &lt;&lt;'EOF' | kubectl apply -f -
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata: {name: lan-pool, namespace: metallb-system}
+spec:
+  addresses: [<span class="var">192.168.26.200-192.168.26.210</span>]
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata: {name: lan-adv, namespace: metallb-system}
+spec:
+  ipAddressPools: [lan-pool]
+EOF</div>
+      </div>
+      <div class="block">
+        <div class="block-title">2 · Le contrôleur d'entrée</div>
+        <div class="code"><span class="cmd">$</span> kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-<span class="var">v1.11.3</span>/deploy/static/provider/baremetal/deploy.yaml
+<span class="cmt"># Le basculer en LoadBalancer pour qu'il prenne une IP MetalLB</span>
+<span class="cmd">$</span> kubectl patch svc ingress-nginx-controller -n ingress-nginx \
+    -p '{"spec":{"type":"LoadBalancer"}}'
+<span class="cmd">$</span> kubectl get svc -n ingress-nginx    <span class="cmt"># EXTERNAL-IP doit se remplir</span></div>
+      </div>
+      <div class="block">
+        <div class="block-title">3 · Le stockage , observez d'abord ce qui se passe sans lui</div>
+        <div class="code"><span class="cmd">$</span> kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/<span class="var">v0.0.30</span>/deploy/local-path-storage.yaml
+<span class="cmd">$</span> kubectl patch storageclass local-path \
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'</div>
+      </div>
+      <div class="warn"><span class="warn-lbl">Vérifiez les numéros de version</span><div class="warn-txt">Les trois URL ci-dessus contiennent des versions figées. Vérifiez sur les dépôts GitHub respectifs qu'elles sont toujours d'actualité au moment du montage , une version trop ancienne peut être incompatible avec la version de Kubernetes que vous avez choisie en Phase 2.</div></div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Phase 7 · Contrôle</span>
+      <h2>La Recette de Montage</h2>
+      <div class="panel">
+        <p>Les huit vérifications à passer avant de déclarer le cluster prêt. Toutes doivent répondre correctement, sinon la démo cassera au pire moment.</p>
+        <div class="code"><span class="cmt">1 - Deux noeuds, tous les deux Ready</span>
+<span class="cmd">$</span> kubectl get nodes -o wide
+<span class="cmt">2 - Aucun pod en echec, tous namespaces confondus</span>
+<span class="cmd">$</span> kubectl get pods -A | grep -vE "Running|Completed"
+<span class="cmt">3 - La plage de pods est la bonne (10.244.x.x attendu)</span>
+<span class="cmd">$</span> kubectl get pods -A -o wide | grep calico-node
+<span class="cmt">4 - Le DNS interne repond</span>
+<span class="cmd">$</span> kubectl run dnstest --rm -it --image=busybox:1.36 --restart=Never -- nslookup kubernetes.default
+<span class="cmt">5 - Un pod peut joindre l'exterieur (NAT sortant OK)</span>
+<span class="cmd">$</span> kubectl run nettest --rm -it --image=busybox:1.36 --restart=Never -- ping -c2 1.1.1.1
+<span class="cmt">6 - Le LoadBalancer distribue bien une IP</span>
+<span class="cmd">$</span> kubectl get svc -n ingress-nginx ingress-nginx-controller
+<span class="cmt">7 - Le pod se place-t-il bien sur le worker ?</span>
+<span class="cmd">$</span> kubectl run place --image=nginx:1.25 &amp;&amp; kubectl get pod place -o wide
+<span class="cmt">8 - etcd repond (utile pour la demo du jour 4)</span>
+<span class="cmd">$</span> kubectl get pods -n kube-system | grep etcd</div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Le réflexe à prendre</span><div class="tip-txt">Si vous avez la main sur l'hyperviseur, <strong>prenez un instantané des deux machines</strong> maintenant. Sinon, sachez que la procédure de remise à zéro complète tient en quatre commandes (dernière slide) et ramène à un état sain en trois minutes. La suite de cette annexe consiste en partie à casser des choses volontairement pour observer comment le cluster réagit , mieux vaut savoir comment revenir en arrière avant de commencer.</div></div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide" data-n="10">
+    <div class="content">
+      <span class="step-label">Observation 01 · Ce qui vient de se passer</span>
+      <h2>Un Nœud, ça se Déclare</h2>
+      <div class="demo">
+        <span class="demo-badge">Relire le rattachement</span>
+        <h3>Tout un cluster tient dans cette poignée de main</h3>
+        <p>Reprenez la Phase 5 et regardez-la avec du recul. Une machine nue a rejoint un cluster en une seule commande. Il n'y a pas eu d'inscription dans un annuaire, pas de fichier de configuration central à modifier, pas de redémarrage du plan de contrôle.</p>
+        <div class="say">Un cluster, ce n'est rien d'autre qu'un plan de contrôle, et des machines qui viennent s'y déclarer. Le token dit « j'ai le droit d'entrer ». Le hash du certificat dit « et moi, je vérifie que tu es bien le bon bureau de gestion ». Tout le reste est de la conséquence.</div>
+        <p><strong>Ce que le nœud a fait, dans l'ordre :</strong></p>
+        <ol>
+          <li>Il a contacté l'API server à l'adresse indiquée et présenté son token.</li>
+          <li>Il a vérifié le certificat du plan de contrôle contre le hash fourni , sans quoi il aurait refusé de continuer.</li>
+          <li>Il a reçu un certificat client personnel, qui remplace le token dès l'instant où il est en place.</li>
+          <li>Son kubelet a démarré, s'est enregistré, et a commencé à recevoir des instructions.</li>
+        </ol>
+        <div class="block" style="margin-top:16px;">
+          <div class="block-title">Le détail à ne pas rater</div>
+          <div class="code"><span class="cmd">$</span> kubectl get pods -n calico-system -o wide</div>
+        </div>
+        <p>Un pod <em>calico-node</em> est apparu tout seul sur le nouveau nœud. Personne ne l'a demandé, aucune commande ne l'a créé. C'est un <strong>DaemonSet</strong> : il déclare « un pod par nœud, pour toujours », et le cluster se charge de tenir cette promesse , y compris pour les nœuds qui n'existaient pas encore au moment où la règle a été écrite.</p>
+      </div>
+      <div class="block" style="margin-top:20px;">
+        <div class="block-title">Rejouer le rattachement autant de fois qu'on veut</div>
+        <div class="code"><span class="cmt">--- Sur le master : sortir le worker du cluster ---</span>
+<span class="cmd">$</span> kubectl drain k8s-worker1 --ignore-daemonsets --delete-emptydir-data
+<span class="cmd">$</span> kubectl delete node k8s-worker1
+<span class="cmd">$</span> kubectl get nodes           <span class="cmt"># il n'en reste qu'un</span>
+
+<span class="cmt">--- Sur le worker : effacer toute trace de l'ancien rattachement ---</span>
+<span class="cmd">$</span> sudo kubeadm reset -f
+<span class="cmd">$</span> sudo rm -rf /etc/cni/net.d
+
+<span class="cmt">--- Sur le master : regenerer une commande de rattachement valide ---</span>
+<span class="cmd">$</span> kubeadm token create --print-join-command
+
+<span class="cmt">--- Sur le worker : coller la commande obtenue ---</span>
+<span class="cmd">$</span> sudo kubeadm join ...
+
+<span class="cmt">--- Sur le master : suivre le retour du noeud en direct ---</span>
+<span class="cmd">$</span> kubectl get nodes -w        <span class="cmt"># NotReady puis Ready en ~30 s</span></div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Ce que révèle le <em>drain</em> préalable</span><div class="tip-txt">On ne supprime jamais un nœud sans l'avoir vidé d'abord. <em>drain</em> déplace ses pods ailleurs et le marque comme non planifiable ; <em>delete node</em> ne fait que le retirer de l'inventaire. Sans le <em>reset</em> côté worker, la machine garderait ses certificats et sa configuration, et refuserait de rejoindre quoi que ce soit : elle se croit encore membre d'un cluster.</div></div>
+    </div>
+  </div>
+
+  <!-- 11 -->
+  <div class="slide" data-n="11">
+    <div class="content">
+      <span class="step-label">Observation 02 · La comparaison</span>
+      <h2>Trois Choses que Minikube Fait pour Vous</h2>
+      <div class="demo">
+        <span class="demo-badge">01 · Un DaemonSet qui a vraiment plusieurs pods</span>
+        <h3>La couverture, pas le nombre</h3>
+        <div class="code"><span class="cmd">$</span> kubectl get pods -n kube-system -o wide | grep kube-proxy</div>
+        <p>Deux pods, deux nœuds, un par machine physique. Sur un Minikube mono-nœud, ce même DaemonSet n'en a qu'un, et la différence avec un Deployment à un réplica reste abstraite.</p>
+        <div class="say">Le détecteur de fumée, ce n'est pas « un détecteur quelque part dans la résidence ». C'est un détecteur dans chaque immeuble, automatiquement, y compris dans celui qui sera construit demain. Un Deployment à deux réplicas ne garantit rien de tel : rien n'empêcherait le scheduler de placer les deux au même endroit.</div>
+      </div>
+      <div class="demo">
+        <span class="demo-badge">02 · Une demande de stockage sans réponse</span>
+        <h3>À exécuter avant d'installer le provisionneur</h3>
+        <div class="code"><span class="cmd">$</span> kubectl apply -f - &lt;&lt;'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: test-cave}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 1Gi}}
+EOF
+<span class="cmd">$</span> kubectl get pvc test-cave        <span class="cmt"># Pending, indefiniment</span>
+<span class="cmd">$</span> kubectl describe pvc test-cave   <span class="cmt"># "no persistent volumes available"</span>
+<span class="cmd">$</span> kubectl get storageclass         <span class="cmt"># vide !</span></div>
+        <div class="say">Sur Minikube, ce PVC passerait en Bound en deux secondes. Ici, il ne se passera jamais rien. La différence tient à une seule ligne : Minikube installe un provisionneur automatique et le déclare classe par défaut. En production, soit le fournisseur cloud en fournit un, soit un administrateur crée les volumes à la main , et c'est exactement ce qu'on demande à l'examen CKA.</div>
+        <div class="block" style="margin-top:16px;">
+          <div class="block-title">La réponse , installer un provisionneur automatique</div>
+          <div class="code"><span class="cmt">Rancher local-path-provisioner : il taille les volumes dans le disque du noeud</span>
+<span class="cmd">$</span> kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/<span class="var">v0.0.30</span>/deploy/local-path-storage.yaml
+<span class="cmt">Attendre qu'il soit pret</span>
+<span class="cmd">$</span> kubectl get pods -n local-path-storage -w
+<span class="cmt">Une classe de stockage existe enfin, mais elle n'est pas "par defaut"</span>
+<span class="cmd">$</span> kubectl get storageclass
+<span class="cmt">La declarer par defaut : c'est CA qui debloque le PVC</span>
+<span class="cmd">$</span> kubectl patch storageclass local-path \
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+<span class="cmt">Verifier : la mention (default) doit apparaitre</span>
+<span class="cmd">$</span> kubectl get storageclass</div>
+        </div>
+        <div class="block">
+          <div class="block-title">Et maintenant, sans avoir touché au PVC</div>
+          <div class="code"><span class="cmd">$</span> kubectl get pvc test-cave
+<span class="cmt">STATUS passe de Pending a Bound, tout seul, en quelques secondes</span>
+<span class="cmd">$</span> kubectl get pv
+<span class="cmt">Un volume vient d'etre cree a la demande, il n'existait pas avant</span>
+<span class="cmd">$</span> kubectl describe pvc test-cave | tail -12</div>
+        </div>
+        <p>Le PVC n'a pas bougé d'une ligne. Ce qui a changé, c'est que le cluster dispose enfin de quelqu'un capable de répondre à la demande. Un PVC ne <em>crée</em> pas de stockage : il <strong>réclame</strong> du stockage, et attend indéfiniment que quelqu'un se manifeste.</p>
+        <div class="block">
+          <div class="block-title">Pour rejouer la démonstration depuis zéro</div>
+          <div class="code"><span class="cmd">$</span> kubectl delete pvc test-cave
+<span class="cmd">$</span> kubectl delete -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.30/deploy/local-path-storage.yaml</div>
+        </div>
+      </div>
+      <div class="demo">
+        <span class="demo-badge">03 · Un vrai LoadBalancer</span>
+        <h3>Une adresse sur le réseau de l'entreprise</h3>
+        <div class="code"><span class="cmd">$</span> kubectl create deploy demo-lb --image=nginx:1.25
+<span class="cmd">$</span> kubectl expose deploy demo-lb --type=LoadBalancer --port=80
+<span class="cmd">$</span> kubectl get svc demo-lb      <span class="cmt"># EXTERNAL-IP se remplit</span></div>
+        <p>Ouvrez cette adresse depuis n'importe quelle machine du réseau : le site répond. Sur Minikube, cette colonne reste sur <em>&lt;pending&gt;</em> indéfiniment, et il faut lancer <em>minikube tunnel</em> pour contourner.</p>
+        <div class="say">Un Service de type LoadBalancer ne fait rien par lui-même : il demande à l'infrastructure de lui attribuer une adresse. Sur un cloud, c'est le fournisseur qui répond. Ici, c'est MetalLB. Sur un cluster nu sans aucun des deux, la demande reste en attente pour toujours , et c'est le comportement correct, pas un bug.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12 -->
+  <div class="slide" data-n="12">
+    <div class="content">
+      <span class="step-label">Observation 03 · La panne</span>
+      <h2>Quand un Nœud Tombe</h2>
+      <div class="demo">
+        <span class="demo-badge">Méthode A · la coupure réseau , recommandée</span>
+        <h3>Le nœud est vivant, mais le cluster ne l'entend plus</h3>
+        <p>Plutôt que de couper le courant, on coupe <strong>la seule chose qui compte</strong> : le lien entre le kubelet du worker et l'API server. La machine continue de tourner, les conteneurs continuent de servir , et le cluster, lui, la déclare morte. C'est exactement ce qui se produit lors d'une vraie coupure réseau, et c'est bien plus fréquent en production qu'une machine qui s'éteint.</p>
+        <div class="block">
+          <div class="block-title">Préparation , depuis le master</div>
+          <div class="code"><span class="cmd">$</span> kubectl create deploy survie --image=nginx:1.25 --replicas=4
+<span class="cmd">$</span> kubectl get pods -o wide -l app=survie   <span class="cmt"># repartis sur les 2 noeuds</span>
+<span class="cmt">Ouvrir deux terminaux cote a cote et les laisser tourner :</span>
+<span class="cmd">$</span> kubectl get nodes -w
+<span class="cmd">$</span> kubectl get pods -o wide -w</div>
+        </div>
+        <div class="block">
+          <div class="block-title">Déclencher la panne , en SSH sur le worker</div>
+          <div class="code"><span class="cmt">Bloquer UNIQUEMENT le port de l'API server</span>
+<span class="cmd">$</span> sudo iptables -I OUTPUT -p tcp --dport 6443 -j DROP
+<span class="cmt">Votre session SSH (port 22) n'est pas affectee : vous gardez la main</span>
+<span class="cmt">Et on verifie que le kubelet, lui, tourne toujours :</span>
+<span class="cmd">$</span> systemctl is-active kubelet     <span class="cmt"># active</span></div>
+        </div>
+        <div class="block">
+          <div class="block-title">Rétablir , toujours sur le worker</div>
+          <div class="code"><span class="cmd">$</span> sudo iptables -D OUTPUT -p tcp --dport 6443 -j DROP</div>
+        </div>
+      </div>
+      <div class="tip"><span class="tip-lbl">Méthode B · encore plus simple</span><div class="tip-txt">Si l'on veut aller au plus court : <em>sudo systemctl stop kubelet</em> sur le worker, puis <em>sudo systemctl start kubelet</em> pour réparer. Le résultat observable est presque identique. La différence : avec la coupure réseau, le kubelet est <strong>vivant et aveugle</strong>, ce qui est le cas de figure réel ; avec l'arrêt du kubelet, il est simplement absent. La méthode A raconte une meilleure histoire, la méthode B se tape en dix caractères.</div></div>
+    </div>
+  </div>
+
+  <!-- 13 -->
+  <div class="slide" data-n="13">
+    <div class="content">
+      <span class="step-label">Observation 03 · La chronologie</span>
+      <h2>Ce que Vous Allez Voir</h2>
+      <div class="demo">
+        <span class="demo-badge">Chronométrez à voix haute</span>
+        <h3>Trois phases, et une surprise à la fin</h3>
+        <table class="spec">
+          <tr><th>Moment</th><th>Ce qui s'affiche</th></tr>
+          <tr><td class="ref">T+0 à 45 s</td><td>Rien. Absolument rien ne bouge. Le cluster ne sait pas encore. Ce silence est la partie la plus intéressante de l'expérience.</td></tr>
+          <tr><td class="ref">≈ T+45 s</td><td>Le nœud bascule en <em>NotReady</em>. Ses pods restent pourtant affichés <em>Running</em> : l'API server n'a plus de nouvelles, et il refuse de présumer quoi que ce soit.</td></tr>
+          <tr><td class="ref">≈ T+5 min</td><td>Les pods du nœud injoignable passent en <em>Terminating</em>, et des remplaçants apparaissent sur le nœud survivant.</td></tr>
+          <tr><td class="ref">Au rétablissement</td><td>Le nœud repasse <em>Ready</em> en quelques secondes, sans aucune commande. Et les pods restés en <em>Terminating</em> disparaissent enfin pour de bon.</td></tr>
+        </table>
+        <div class="say">Quarante-cinq secondes de silence, puis cinq minutes avant de réagir. Ce n'est pas de la lenteur, c'est de la prudence. Un nœud qui ne répond plus pendant trente secondes, c'est le plus souvent le réseau qui a hoqueté. Déplacer tous ses pods pour ça coûterait bien plus cher que d'attendre , alors Kubernetes attend d'être sûr.</div>
+        <div class="block">
+          <div class="block-title">La surprise , à vérifier pendant la panne, depuis le worker</div>
+          <div class="code"><span class="cmt">Le cluster affiche ces pods en Terminating... mais sur la machine :</span>
+<span class="cmd">$</span> sudo crictl ps | grep nginx
+<span class="cmt">Ils tournent toujours. Ils servent toujours du trafic.</span></div>
+        </div>
+        <p>Pendant ces minutes-là, <strong>les mêmes pods existent en double</strong> : les originaux, bien vivants sur un nœud que plus personne ne contrôle, et leurs remplaçants sur le nœud survivant. Personne ne peut ordonner aux premiers de s'arrêter, puisque justement on ne les joint plus. C'est le kubelet qui fera le ménage <em>à son retour</em>, en constatant que ces pods ne lui sont plus assignés.</p>
+        <div class="say">Voilà pourquoi une base de données ne se déploie pas comme un serveur web. Deux nginx qui servent la même page en double, ce n'est pas grave. Deux bases qui écrivent en parallèle dans le même stockage, c'est une corruption de données. C'est tout le sujet des StatefulSets et du verrouillage , et la raison pour laquelle Kubernetes préfère laisser un pod en Terminating une éternité plutôt que d'en démarrer un second trop vite.</div>
+        <p><strong>Les deux durées sont réglables</strong> , <em>node-monitor-grace-period</em> côté controller-manager pour la première, les tolérances automatiques <em>node.kubernetes.io/unreachable</em> pour la seconde. Les baisser rend le cluster plus réactif, et plus nerveux. C'est un arbitrage, pas un réglage optimal.</p>
+        <p>Et la question suivante s'impose d'elle-même : ici, c'est un <strong>worker</strong> qui est tombé, et le plan de contrôle a géré. Que se passerait-il si c'était le <strong>plan de contrôle</strong> lui-même ? C'est tout le sujet de la haute disponibilité, au module 14.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14 -->
+  <div class="slide" data-n="14">
+    <div class="content">
+      <span class="step-label">Annexe · Dépannage</span>
+      <h2>Quand ça Casse</h2>
+      <div class="panel" style="padding:26px 30px;">
+        <table class="spec">
+          <tr><th>Symptôme</th><th>Cause la plus probable &amp; commande</th></tr>
+          <tr><td class="ref">Nœud NotReady<br>après init</td><td>Normal tant que le CNI n'est pas installé. Si Calico est déjà là : <em>kubectl get pods -n calico-system</em> puis <em>kubectl logs</em> sur le pod fautif.</td></tr>
+          <tr><td class="ref">CoreDNS<br>en Pending</td><td>Même cause : pas de réseau de pods. Ils démarreront seuls dès que Calico sera opérationnel.</td></tr>
+          <tr><td class="ref">kubeadm join<br>échoue</td><td>Token expiré (24 h) → <em>kubeadm token create --print-join-command</em> sur le master. Ou pare-feu : le port 6443 doit être joignable depuis le worker.</td></tr>
+          <tr><td class="ref">kubelet<br>ne démarre pas</td><td><em>sudo journalctl -u kubelet -n 50 --no-pager</em>. Neuf fois sur dix : swap réactivé, ou <em>SystemdCgroup</em> resté à false.</td></tr>
+          <tr><td class="ref">Pods qui<br>redémarrent au hasard</td><td>Désaccord de cgroups entre containerd et kubelet. Vérifiez <em>grep SystemdCgroup /etc/containerd/config.toml</em>.</td></tr>
+          <tr><td class="ref">Plus de réseau<br>sur les VM</td><td>Le CIDR des pods chevauche le LAN. <em>kubectl get ippools -o yaml</em> , doit être 10.244.0.0/16, jamais 192.168.0.0/16.</td></tr>
+          <tr><td class="ref">EXTERNAL-IP<br>reste en pending</td><td>MetalLB : vérifiez que l'<em>IPAddressPool</em> et le <em>L2Advertisement</em> existent, et que la plage est hors DHCP.</td></tr>
+          <tr><td class="ref">Inspection<br>bas niveau</td><td>Sur le nœud : <em>sudo crictl ps -a</em> et <em>sudo crictl logs &lt;id&gt;</em>. C'est le docker ps de containerd.</td></tr>
+        </table>
+      </div>
+      <div class="block" style="margin-top:20px;">
+        <div class="block-title">Tout recommencer , 3 minutes</div>
+        <div class="code"><span class="cmt">Sur chaque noeud, dans cet ordre</span>
+<span class="cmd">$</span> sudo kubeadm reset -f
+<span class="cmd">$</span> sudo rm -rf /etc/cni/net.d /var/lib/etcd $HOME/.kube
+<span class="cmd">$</span> sudo iptables -F &amp;&amp; sudo iptables -t nat -F
+<span class="cmd">$</span> sudo systemctl restart containerd
+<span class="cmt">Puis reprendre a la Phase 3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 15 -->
+  <div class="slide" data-n="15">
+    <div class="content">
+      <span class="step-label">Annexe · Récapitulatif</span>
+      <h2>Les Sept Points de Vigilance</h2>
+      <div class="panel">
+        <p>Si vous refaites ce montage un jour, chez un client ou pour vous entraîner, ce sont les sept endroits où l'on se plante. Aucun n'est difficile ; tous sont silencieux.</p>
+        <ul>
+          <li><strong>Le swap.</strong> kubeadm refuse catégoriquement de démarrer tant qu'il est actif. Désactivez-le dans <em>/etc/fstab</em>, pas seulement pour la session en cours, sinon il revient au prochain redémarrage.</li>
+          <li><strong>SystemdCgroup.</strong> containerd et kubelet doivent utiliser le même gestionnaire de cgroups. Sinon le cluster démarre normalement, puis les pods redémarrent aléatoirement sous charge, sans message d'erreur exploitable.</li>
+          <li><strong>Le CIDR des pods.</strong> Jamais une plage qui recouvre le réseau physique. Vérifiez toujours après installation : <em>kubectl get ippools -o jsonpath='{.items[*].spec.cidr}'</em>.</li>
+          <li><strong>Le dépôt de paquets.</strong> <em>apt.kubernetes.io</em> est hors service. Les tutoriels qui l'utilisent encore échouent en 403. Le dépôt actuel est <em>pkgs.k8s.io</em>, séparé par version mineure.</li>
+          <li><strong>Le gel des versions.</strong> <em>apt-mark hold</em> sur les trois paquets. Une mise à jour automatique d'un composant seul désynchronise le cluster.</li>
+          <li><strong>La plage MetalLB.</strong> Elle doit être libre et <em>hors</em> de la plage distribuée par le DHCP, sinon deux machines finiront par se disputer la même adresse. Pinguez chaque adresse avant de la déclarer.</li>
+          <li><strong>Le token de rattachement.</strong> Il expire au bout de 24 heures. Ce n'est pas une panne : on en régénère un avec <em>kubeadm token create --print-join-command</em>.</li>
+        </ul>
+      </div>
+      <div class="tip"><span class="tip-lbl">Ce qu'il faut retenir de cette annexe</span><div class="tip-txt">Minikube et ce cluster font tourner <strong>exactement le même Kubernetes</strong>. Ce qui change, c'est ce qui vous est offert : le réseau, le stockage, l'exposition. Savoir ce qui est un service de votre environnement et ce qui est un service de Kubernetes est la différence entre quelqu'un qui sait utiliser un cluster et quelqu'un qui sait en administrer un.</div></div>
+      <a href="index.html" class="next-mod">Retour au sommaire ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 15;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

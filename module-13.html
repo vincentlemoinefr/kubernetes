@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 13 · Helm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #bc8cff; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .key { color: #79c0ff; }
+    .code .val { color: #a5d6ff; }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · Le problème</span>
+      <h1>Helm</h1>
+      <div class="panel">
+        <p>Au module 9, déployer WordPress a demandé deux fichiers et plusieurs objets (Secret, PVC, Deployments, Services). Pour une application complexe, on peut atteindre <em>vingt fichiers YAML</em> interdépendants. Les écrire, les versionner, les mettre à jour de façon cohérente devient un métier.</p>
+        <p><strong>Helm</strong> est le <strong>gestionnaire de paquets</strong> de Kubernetes , l'équivalent d'<em>apt</em> pour Ubuntu. Il empaquette toute une application (tous ses YAML) dans un <strong>chart</strong> réutilisable, paramétrable, installable en <em>une</em> commande.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Déployer à la main, c'est <em>monter chaque meuble pièce par pièce</em>, avec sa propre notice. Helm, c'est l'<em>appartement meublé clé en main</em> : on choisit un modèle dans un catalogue, on règle deux ou trois options (la couleur des murs), et tout est livré et monté d'un coup.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Le vocabulaire</span>
+      <h2>Chart, Values, Release, Repo</h2>
+      <div class="panel"><p>Quatre mots à maîtriser, et tout Helm devient limpide :</p></div>
+      <div class="grid" style="margin-top:24px;">
+        <div class="mini-card"><h3>Chart</h3><p>Le <em>paquet</em> : un dossier de modèles YAML avec des trous à remplir. Le « meuble en kit » avec sa notice.</p></div>
+        <div class="mini-card"><h3>Values</h3><p>Les <em>options</em> qui remplissent les trous : nombre de réplicas, mot de passe, type de service. Les réglages du kit.</p></div>
+        <div class="mini-card"><h3>Release</h3><p>Une <em>installation concrète</em> d'un chart, avec un nom. On peut installer le même chart plusieurs fois sous des noms différents.</p></div>
+        <div class="mini-card"><h3>Repository</h3><p>Le <em>catalogue</em> en ligne d'où l'on télécharge des charts (ex. dépôts publics d'éditeurs).</p></div>
+      </div>
+      <div class="panel" style="margin-top:24px;"><p>En une phrase : on prend un <em>chart</em> dans un <em>repo</em>, on l'installe avec des <em>values</em>, ce qui crée une <em>release</em> vivante dans le cluster.</p></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Installer l'outil</span>
+      <h2>Helm sur Ubuntu</h2>
+      <div class="panel"><p>Helm est un simple binaire client (il parle à votre cluster via kubectl). Installation en une ligne :</p>
+      <div class="code"><span class="cmt">Installer Helm via le script officiel</span>
+<span class="cmd">$</span> curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+<span class="cmt">Verifier</span>
+<span class="cmd">$</span> helm version
+<span class="cmt">Ajouter un catalogue (repo) et le rafraichir</span>
+<span class="cmd">$</span> helm repo add podinfo https://stefanprodan.github.io/podinfo
+<span class="cmd">$</span> helm repo update
+<span class="cmt">Chercher un chart dans les repos ajoutes</span>
+<span class="cmd">$</span> helm search repo podinfo</div></div>
+      <div class="prod"><span class="prod-lbl">Bon à savoir</span><div class="prod-txt">Helm n'installe rien sur le cluster lui-même : c'est un outil <em>client</em> qui lit votre configuration kubectl et applique les YAML générés. Il fonctionne donc <em>à l'identique</em> sur Minikube et sur n'importe quel cluster de production.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Installer une application</span>
+      <h2>install, list, status</h2>
+      <div class="panel"><p>On installe le chart de démonstration <em>podinfo</em> (une mini-application légère, parfaite pour s'entraîner) sous le nom de release <em>demo</em> :</p>
+      <div class="code"><span class="cmt">Installer : cree la release 'demo' a partir du chart podinfo</span>
+<span class="cmd">$</span> helm install demo podinfo/podinfo
+<span class="cmt">Lister les releases installees</span>
+<span class="cmd">$</span> helm list
+<span class="cmt">Etat detaille d'une release</span>
+<span class="cmd">$</span> helm status demo
+<span class="cmt">Cote Kubernetes, les objets crees par Helm sont des objets normaux</span>
+<span class="cmd">$</span> kubectl get all -l app.kubernetes.io/name=podinfo</div></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Une <em>release</em>, c'est un appartement meublé <em>effectivement installé</em>, avec une étiquette à son nom (« demo »). On peut commander le même modèle deux fois (« demo », « demo-test ») : deux appartements identiques, gérés séparément.</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Régler, mettre à jour, annuler</span>
+      <h2>values, upgrade, rollback</h2>
+      <div class="panel"><p>La force de Helm : changer une option et appliquer proprement, avec un historique et un retour arrière , exactement comme un Deployment, mais à l'échelle de <em>toute</em> l'application.</p>
+      <div class="code"><span class="cmt">Voir les reglages disponibles du chart</span>
+<span class="cmd">$</span> helm show values podinfo/podinfo | head -n 30
+<span class="cmt">Changer une option a la volee : passer a 3 replicas</span>
+<span class="cmd">$</span> helm upgrade demo podinfo/podinfo --set replicaCount=3
+<span class="cmd">$</span> kubectl get pods -l app.kubernetes.io/name=podinfo   <span class="cmt"># 3 pods</span>
+<span class="cmt">Voir les values appliquees</span>
+<span class="cmd">$</span> helm get values demo
+<span class="cmt">L'historique des versions de la release</span>
+<span class="cmd">$</span> helm history demo
+<span class="cmt">Revenir a la version 1 (avant l'upgrade)</span>
+<span class="cmd">$</span> helm rollback demo 1</div></div>
+      <div class="panel" style="margin-top:20px;"><p>Pour des réglages nombreux, on les met dans un fichier plutôt qu'en <em>--set</em> :</p>
+      <div class="code"><span class="cmt">mes-values.yaml</span>
+replicaCount: 2
+ui:
+  message: "Bonjour depuis Helm"
+<span class="cmd">$</span> helm upgrade demo podinfo/podinfo -f mes-values.yaml</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Retour au module 6</span>
+      <h2>La Vraie Stack de Supervision</h2>
+      <div class="panel">
+        <p>Souvenez-vous : au module 6, on a monté Prometheus + Grafana <em>à la main</em> pour comprendre. Voici la promesse tenue , la <strong>même chose en production</strong>, en une commande Helm, avec Alertmanager et des dizaines de dashboards en bonus :</p>
+        <div class="code"><span class="cmt">Le chart officiel de supervision</span>
+<span class="cmd">$</span> helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+<span class="cmd">$</span> helm repo update
+<span class="cmt">Tout installer dans le namespace monitoring</span>
+<span class="cmd">$</span> helm install kube-prom prometheus-community/kube-prometheus-stack \
+    --namespace monitoring --create-namespace
+<span class="cmt">Acceder a Grafana (mot de passe admin par defaut : prom-operator)</span>
+<span class="cmd">$</span> kubectl get pods -n monitoring
+<span class="cmd">$</span> minikube service kube-prom-grafana -n monitoring</div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Minikube vs Kubernetes réel</span><div class="prod-txt">C'est la voie standard partout. La même commande déploie cette stack sur Minikube comme sur un cluster de 100 nœuds : Helm gère la complexité, et le chart s'adapte (découverte automatique des cibles, etc.). On comprend les rouages (module 6), puis on délègue le montage à Helm (ici).</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Helm est le gestionnaire de paquets de Kubernetes : il installe une application entière (tous ses YAML) en une commande.</div></div>
+            <div class="flip-back"><div class="b-title">Le « apt » de K8s</div><p>Un chart empaquette tous les manifestes d'une appli ; <em>helm install</em> les déploie d'un coup, de façon cohérente.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">Une « release » est la même chose qu'un « chart ».</div></div>
+            <div class="flip-back"><div class="b-title">Modèle vs instance</div><p>Le chart est le paquet (le modèle) ; la release est une <em>installation concrète</em> de ce chart, avec un nom, dans le cluster.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">On peut revenir à une version précédente d'une release avec helm rollback.</div></div>
+            <div class="flip-back"><div class="b-title">Historique géré</div><p>Helm garde l'historique des upgrades (<em>helm history</em>) et permet de revenir à n'importe quelle révision.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">Helm s'installe dans le cluster et fonctionne différemment selon qu'on est sur Minikube ou en production.</div></div>
+            <div class="flip-back"><div class="b-title">Outil client</div><p>Helm est un binaire côté client qui parle à l'API via kubectl. Il fonctionne à l'identique partout, sans composant à installer dans le cluster.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · Atelier</span>
+      <h2>Atelier 13 : Le Cycle de Vie Helm</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 13 · Entièrement guidé</span>
+        <h3>Installer, régler, annuler, désinstaller</h3>
+        <p>On manipule le cycle complet sur le chart léger podinfo. Prérequis : Minikube démarré.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">1 · Installer Helm et un chart</div><div class="code"><span class="cmd">$</span> curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+<span class="cmd">$</span> helm repo add podinfo https://stefanprodan.github.io/podinfo
+<span class="cmd">$</span> helm repo update
+<span class="cmd">$</span> helm install demo podinfo/podinfo
+<span class="cmd">$</span> helm list</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">2 · Mettre à jour puis revenir en arrière</div><div class="code"><span class="cmd">$</span> helm upgrade demo podinfo/podinfo --set replicaCount=3
+<span class="cmd">$</span> kubectl get pods -l app.kubernetes.io/name=podinfo   <span class="cmt"># 3 pods</span>
+<span class="cmd">$</span> helm history demo
+<span class="cmd">$</span> helm rollback demo 1
+<span class="cmd">$</span> kubectl get pods -l app.kubernetes.io/name=podinfo   <span class="cmt"># revenu a 1</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">3 · Désinstaller proprement</div><div class="code"><span class="cmd">$</span> helm uninstall demo
+<span class="cmd">$</span> helm list                <span class="cmt"># plus aucune release</span>
+<span class="cmd">$</span> kubectl get all -l app.kubernetes.io/name=podinfo   <span class="cmt"># tout est parti</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Validation</div>
+          <p>Réussi si vous avez vu le nombre de pods passer à 3 après l'<em>upgrade</em>, revenir à 1 après le <em>rollback</em>, et tout disparaître après l'<em>uninstall</em> , le tout sans jamais écrire un seul YAML. C'est la puissance des paquets.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Conclusion</span>
+      <h2>Récapitulatif du Module 13</h2>
+      <div class="panel"><ul>
+        <li><strong>Helm = le gestionnaire de paquets</strong> de Kubernetes : une application entière en une commande.</li>
+        <li><strong>Chart</strong> (le paquet), <strong>values</strong> (les options), <strong>release</strong> (l'installation), <strong>repo</strong> (le catalogue).</li>
+        <li><strong>install / upgrade / rollback / uninstall :</strong> un cycle de vie complet avec historique.</li>
+        <li><strong>Réglages</strong> via <em>--set</em> ou un fichier <em>values.yaml</em>.</li>
+        <li><strong>Promesse tenue :</strong> la vraie stack de supervision (kube-prometheus-stack) s'installe en une commande Helm.</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">On sait construire, sécuriser et meubler la résidence clé en main. Dernier module : que faire quand <em>une visite tourne mal</em> (dépannage), comment <em>inventer de nouveaux types de pièces</em> (CRD), assurer la <em>continuité du syndic</em> (haute disponibilité)… et valider tout le cursus par un grand quiz.</div></div>
+      <a href="module-14.html" class="next-mod">Module 14 : Dépannage, CRD &amp; HA ></a>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 9;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

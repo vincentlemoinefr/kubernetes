@@ -1,0 +1,46 @@
+# =============================================================================
+# STEP 7 - The single entry point (EX-09)
+# =============================================================================
+# Last floor, and only once the app answers from inside the cluster.
+#
+# Prerequisites:
+#   minikube addons enable ingress
+#   kubectl get pods -n ingress-nginx            # controller must be Running
+#   echo "$(minikube ip) nextcloud.local" | sudo tee -a /etc/hosts
+#
+# That last line matters: nextcloud.local exists in no DNS on earth. The
+# Ingress routes on the Host header, so the name has to resolve to the
+# cluster IP on your machine for the browser to send that header at all.
+#
+# Apply:
+#   kubectl apply -f 07-ingress.yaml
+# Check:
+#   kubectl get ingress -n cloud                 # ADDRESS must fill in
+#   curl -I -H "Host: nextcloud.local" http://$(minikube ip)
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextcloud
+  namespace: cloud
+  annotations:
+    # No rewrite-target here on purpose: the app is served at the root, and
+    # "rewrite-target: /" combined with "path: /" would rewrite every sub-URL
+    # to / and break every page but the home page.
+    # Uploads: see 08-bonus.yaml for why this exists and what it defaults to.
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+    # Installing/scanning large folders can exceed the 60s default.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nextcloud.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nextcloud
+                port:
+                  number: 80

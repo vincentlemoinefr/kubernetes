@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 1 · La Résidence Orchestrée</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #58a6ff; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · Introduction</span>
+      <h1>La Résidence Orchestrée</h1>
+      <div class="panel">
+        <p>Kubernetes (souvent abrégé <strong>K8s</strong> : un K, 8 lettres, un s) est un <strong>orchestrateur de conteneurs</strong>. Sa mission tient en une phrase : faire tourner des applications dans des conteneurs sur un ensemble de machines, et les y maintenir en bon état tout seul.</p>
+        <p>« Orchestrer » veut dire : décider <em>où</em> placer chaque application, la <em>redémarrer</em> si elle tombe, en lancer <em>plus de copies</em> quand la charge monte, lui donner une <em>adresse réseau</em> stable, et appliquer les <em>mises à jour</em> sans coupure. Vous décrivez ce que vous voulez ; Kubernetes se débrouille pour que ce soit vrai et le reste.</p>
+        <p>Pendant ces 4 jours, une seule image va tout porter : le cluster est une <strong>grande résidence</strong> que l'on gère.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Imaginez un <em>syndic</em> idéal qui veille sur un ensemble d'immeubles : il loge les habitants, relève ceux qui tombent malades, ouvre de nouveaux appartements quand il y a foule, affiche les bonnes adresses à l'entrée et refait les peintures sans jamais reloger personne dans la rue. Ce syndic, c'est Kubernetes.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Le problème</span>
+      <h2>Pourquoi Orchestrer ?</h2>
+      <div class="panel">
+        <p>Un conteneur (Docker) emballe une application avec tout ce dont elle a besoin. Tant qu'on en a <strong>un ou deux</strong>, un simple <em>docker run</em> suffit. Le problème commence quand il y en a <strong>cinquante</strong>, répartis sur <strong>dix machines</strong>.</p>
+        <p>Il faut alors répondre, à la main, à des questions épuisantes : sur quelle machine lancer ce conteneur ? Que faire quand une machine plante à 3 h du matin ? Comment passer de 3 à 30 copies un jour de pic ? Comment les copies se trouvent-elles entre elles alors qu'elles changent d'adresse sans cesse ? Comment déployer la version 2 sans couper le service ?</p>
+        <p>Kubernetes automatise <strong>toutes</strong> ces réponses. C'est un système qui transforme un parc de machines en une seule grande ressource pilotable.</p>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">En production, un cluster, c'est <em>plusieurs machines</em> (physiques ou virtuelles) : un petit groupe de « machines de gestion » et beaucoup de « machines de travail ». Nous, on simule tout ça sur <em>une seule machine</em> avec Minikube, uniquement parce qu'on n'en a qu'une. La logique reste rigoureusement identique ; seul le nombre d'immeubles change.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · La carte mentale</span>
+      <h2>La Grande Métaphore</h2>
+      <div class="panel"><p>Voici la table de correspondance de toute la formation. Gardez-la en tête : chaque module y reviendra. À gauche le terme Kubernetes, à droite son rôle dans la résidence.</p></div>
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="mini-card"><h3>Cluster</h3><p>L'ensemble de la résidence : tous les immeubles + la gestion.</p><span class="mini-tag">la résidence</span></div>
+        <div class="mini-card"><h3>Node (nœud)</h3><p>Une machine. Un immeuble où l'on peut loger des habitants.</p><span class="mini-tag">un immeuble</span></div>
+        <div class="mini-card"><h3>Pod</h3><p>La plus petite unité déployable : un ou plusieurs conteneurs ensemble.</p><span class="mini-tag">un appartement</span></div>
+        <div class="mini-card"><h3>Conteneur</h3><p>Le programme qui tourne réellement à l'intérieur du pod.</p><span class="mini-tag">l'habitant / les meubles</span></div>
+        <div class="mini-card"><h3>Control plane</h3><p>Le cerveau qui décide de tout : où loger, quoi réparer.</p><span class="mini-tag">le syndic</span></div>
+        <div class="mini-card"><h3>Service</h3><p>Une adresse réseau stable pour joindre des pods qui changent.</p><span class="mini-tag">plaque + interphone</span></div>
+        <div class="mini-card"><h3>Deployment</h3><p>Le contrat qui garantit « N appartements identiques toujours occupés ».</p><span class="mini-tag">le bail de gestion</span></div>
+        <div class="mini-card"><h3>Namespace</h3><p>Un cloisonnement logique du cluster.</p><span class="mini-tag">une aile / un étage</span></div>
+        <div class="mini-card"><h3>Volume</h3><p>Du stockage qui survit au redémarrage d'un conteneur.</p><span class="mini-tag">la cave / le box</span></div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Tout le vocabulaire intimidant de Kubernetes se range dans cette image simple. Quand un terme vous perdra, revenez ici : <em>où vit la chose dans la résidence ?</em></div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Les super-pouvoirs</span>
+      <h2>Ce que Fait Kubernetes pour Vous</h2>
+      <div class="grid" style="margin-top:6px;">
+        <div class="mini-card"><div class="mini-num">01</div><h3>Auto-réparation</h3><p>Un conteneur plante ? Kubernetes le relance. Un immeuble entier tombe ? Il reloge ses habitants ailleurs, automatiquement.</p></div>
+        <div class="mini-card"><div class="mini-num">02</div><h3>Mise à l'échelle</h3><p>Passer de 3 à 30 copies (ou l'inverse) d'une seule commande, voire automatiquement selon la charge CPU.</p></div>
+        <div class="mini-card"><div class="mini-num">03</div><h3>Découverte de service</h3><p>Les applications se trouvent par un nom stable, sans jamais connaître l'adresse réelle, mouvante, de chaque copie.</p></div>
+        <div class="mini-card"><div class="mini-num">04</div><h3>Déploiements progressifs</h3><p>Remplacer la v1 par la v2 copie par copie, sans coupure, avec retour arrière instantané si ça tourne mal.</p></div>
+      </div>
+      <div class="panel" style="margin-top:24px;"><p>Le fil conducteur de tous ces pouvoirs : Kubernetes compare en permanence <strong>l'état désiré</strong> (ce que vous avez demandé) à <strong>l'état réel</strong> (ce qui tourne vraiment) et corrige l'écart. C'est une boucle de contrôle qui ne dort jamais.</p></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · L'idée maîtresse</span>
+      <h2>Déclaratif : l'État Désiré</h2>
+      <div class="panel">
+        <p>On ne dit pas à Kubernetes <strong>comment</strong> faire les choses, étape par étape (ce serait l'<em>impératif</em>). On lui décrit <strong>l'état souhaité</strong> et il s'arrange (c'est le <em>déclaratif</em>).</p>
+        <p>Exemple : au lieu de « lance ce conteneur, puis surveille-le, puis relance-le s'il meurt, puis... », on écrit dans un fichier : <strong>« je veux 3 copies de cette application, en permanence »</strong>. Kubernetes se charge du reste, pour toujours. Si vous en tuez une, il en recrée une, sans qu'on lui redemande.</p>
+        <p>Ces descriptions s'écrivent dans des fichiers <strong>YAML</strong> (un format texte avec de l'indentation). C'est la langue officielle de la résidence : le module 4 vous l'apprend.</p>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">Cette approche déclarative est ce qui rend Kubernetes fiable à grande échelle <em>et</em> sur une machine. En entreprise, ces fichiers YAML sont versionnés dans Git et appliqués automatiquement (« GitOps ») : le dépôt décrit la résidence idéale, le cluster s'y conforme. Sur notre Minikube, on appliquera les mêmes fichiers à la main, c'est le même geste, en plus petit.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · L'écosystème</span>
+      <h2>Origines & CNCF</h2>
+      <div class="panel">
+        <p>Kubernetes est né chez <strong>Google</strong> en 2014, inspiré de leur système interne « Borg », puis offert à une fondation neutre : la <strong>CNCF</strong> (Cloud Native Computing Foundation). Personne ne « possède » Kubernetes : c'est un projet open source gouverné par la communauté.</p>
+        <p>Autour du noyau gravite tout un écosystème d'outils, eux aussi hébergés par la CNCF, que cette formation va croiser : <em>Helm</em> (paquets d'applications), <em>Prometheus</em> (supervision), <em>etcd</em> (la base de données du cluster), <em>containerd</em> (le moteur de conteneurs).</p>
+      </div>
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="mini-card"><div class="mini-num">2014</div><h3>Naissance</h3><p>Google publie Kubernetes en open source, héritier du système Borg.</p></div>
+        <div class="mini-card"><div class="mini-num">2015</div><h3>CNCF</h3><p>Le projet est confié à une fondation neutre, garante de sa gouvernance.</p></div>
+        <div class="mini-card"><div class="mini-num">∞</div><h3>Écosystème</h3><p>Helm, Prometheus, etcd, containerd… des centaines d'outils compatibles.</p></div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">La CNCF est l'<em>organisme public</em> qui édicte les normes de construction. Chaque résidence Kubernetes, où qu'elle soit bâtie (Google, Amazon, ou notre Minikube), respecte les mêmes plans : ce qu'on apprend ici fonctionne partout.</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Kubernetes remplace Docker : il sait construire les images de conteneurs lui-même.</div></div>
+            <div class="flip-back"><div class="b-title">Rôles distincts</div><p>Docker (ou un autre moteur) fabrique et exécute les conteneurs ; Kubernetes les <em>orchestre</em> à travers tout un parc. Ils travaillent ensemble, ils ne se remplacent pas.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">Avec Kubernetes, on décrit l'état souhaité et le système se charge de l'atteindre puis de le maintenir.</div></div>
+            <div class="flip-back"><div class="b-title">Le modèle déclaratif</div><p>C'est le cœur de Kubernetes : une boucle de contrôle compare en boucle l'état réel à l'état désiré et corrige tout écart.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">Minikube fait tourner un cluster Kubernetes complet sur une seule machine.</div></div>
+            <div class="flip-back"><div class="b-title">Exact</div><p>Minikube simule toute la résidence dans un seul immeuble. Idéal pour apprendre et tester ; on l'utilise précisément parce qu'on n'a qu'une machine.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">La plus petite unité que Kubernetes déploie est le conteneur.</div></div>
+            <div class="flip-back"><div class="b-title">C'est le pod</div><p>L'unité de base est le <em>pod</em> (l'appartement), qui contient un ou plusieurs conteneurs. Kubernetes ne manipule jamais un conteneur tout seul.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · Atelier</span>
+      <h2>Atelier 1 : le Terrain est-il Constructible ?</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 01 · Préparation du terrain</span>
+        <h3>Vérifier que la machine Ubuntu 22.04 peut accueillir la résidence</h3>
+        <p>Avant de construire (module 3), on vérifie que le terrain tient la route. Minikube demande au minimum <strong>2 processeurs (vCPU)</strong>, <strong>2 Go de RAM</strong> et <strong>20 Go de disque</strong> libres. Ouvrez un terminal et copiez-collez ces commandes : aucune ne modifie le système, elles ne font que mesurer.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">Inventaire de la machine · à copier-coller tel quel</div><div class="code"><span class="cmt">Version d'Ubuntu : on attend 22.04</span>
+<span class="cmd">$</span> lsb_release -a
+<span class="cmt">Nombre de processeurs (il en faut au moins 2)</span>
+<span class="cmd">$</span> nproc
+<span class="cmt">Memoire vive : colonne 'total' >= 2 Go</span>
+<span class="cmd">$</span> free -h
+<span class="cmt">Espace disque libre sur la racine '/'</span>
+<span class="cmd">$</span> df -h /
+<span class="cmt">Architecture (on attend x86_64 pour ce cours)</span>
+<span class="cmd">$</span> uname -m</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Le terrain supporte-t-il la virtualisation ?</div><div class="code"><span class="cmt">Doit renvoyer un nombre > 0 (extensions VT-x/AMD-V actives)</span>
+<span class="cmd">$</span> egrep -c '(vmx|svm)' /proc/cpuinfo
+<span class="cmt">Suis-je bien dans le groupe sudo ? (necessaire au module 3)</span>
+<span class="cmd">$</span> groups | grep -o sudo</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Validation</div>
+          <p>Le terrain est constructible si : Ubuntu 22.04 confirmé, <em>nproc ≥ 2</em>, RAM totale ≥ 2 Go, au moins 20 Go libres sur <em>/</em>, et la commande de virtualisation renvoie un nombre supérieur à 0. Si tout est vert, rendez-vous au module 3 pour bâtir la résidence. (Le module 2 explique d'abord les plans de construction.)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Conclusion</span>
+      <h2>Récapitulatif du Module 1</h2>
+      <div class="panel"><ul>
+        <li><strong>Kubernetes = orchestrateur :</strong> il fait tourner des conteneurs sur un parc de machines et les y maintient en bon état tout seul.</li>
+        <li><strong>Modèle déclaratif :</strong> on décrit l'état désiré (en YAML), une boucle de contrôle le réalise et le maintient en permanence.</li>
+        <li><strong>Quatre super-pouvoirs :</strong> auto-réparation, mise à l'échelle, découverte de service, déploiements progressifs.</li>
+        <li><strong>La métaphore :</strong> cluster = résidence, nœud = immeuble, pod = appartement, control plane = syndic.</li>
+        <li><strong>Minikube :</strong> toute la résidence sur une machine. Par contrainte de matériel, pas par limite conceptuelle.</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">On sait désormais à quoi sert le syndic et comment lire le plan. Prochaine étape : ouvrir les plans de construction pour voir <em>qui</em>, dans la gestion, prend chaque décision.</div></div>
+      <a href="module-2.html" class="next-mod">Module 2 : L'Architecture du Cluster ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 9;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

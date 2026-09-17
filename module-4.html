@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 4 · Les Pods en Profondeur</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #d2a8ff; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .key { color: #79c0ff; }
+    .code .val { color: #a5d6ff; }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · La brique de base</span>
+      <h1>Les Pods en Profondeur</h1>
+      <div class="panel">
+        <p>Le <strong>pod</strong> est la plus petite chose que Kubernetes sait gérer. C'est l'<strong>appartement</strong> : une enveloppe qui contient <strong>un ou plusieurs conteneurs</strong> partageant la même adresse réseau et le même espace de stockage local.</p>
+        <p>Point clé déjà vu : on ne manipule jamais un conteneur seul. Si un appartement n'a qu'un habitant (le cas courant), on déploie quand même un pod. Pourquoi cette enveloppe ? Parce qu'elle donne aux conteneurs un endroit commun pour vivre : <em>même IP</em>, <em>même localhost</em>, possibilité de <em>partager des fichiers</em>.</p>
+        <p>Ce module ouvre l'appartement en grand : comment on le décrit, son cycle de vie, ses colocataires, et comment on vérifie qu'il est en bonne santé.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Un <em>pod</em>, c'est un appartement avec une seule porte d'entrée (une IP) et une seule boîte aux lettres. Les conteneurs qui y vivent sont des <em>colocataires</em> : ils partagent l'adresse et peuvent se passer des plats par-dessus la table (localhost), mais chacun a sa chambre.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · La langue officielle</span>
+      <h2>Le Manifeste YAML</h2>
+      <div class="panel"><p>Un pod se décrit dans un fichier YAML avec toujours <strong>les mêmes quatre sections</strong>. Apprenez-les une fois : tous les objets Kubernetes suivent ce squelette.</p>
+        <div class="code"><span class="key">apiVersion:</span> <span class="val">v1</span>              <span class="cmt"># la version de l'API (ici, le groupe de base)</span>
+<span class="key">kind:</span> <span class="val">Pod</span>                  <span class="cmt"># le TYPE d'objet qu'on cree</span>
+<span class="key">metadata:</span>                  <span class="cmt"># l'identite : nom et etiquettes</span>
+  <span class="key">name:</span> <span class="val">web</span>
+  <span class="key">labels:</span>
+    <span class="key">app:</span> <span class="val">web</span>
+<span class="key">spec:</span>                      <span class="cmt"># la SPECIFICATION : ce qu'on veut vraiment</span>
+  <span class="key">containers:</span>
+  <span class="cmt">- nom + image + port de l'unique conteneur</span>
+  - <span class="key">name:</span> <span class="val">nginx</span>
+    <span class="key">image:</span> <span class="val">nginx:1.25</span>
+    <span class="key">ports:</span>
+    - <span class="key">containerPort:</span> <span class="val">80</span></div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt"><em>kind</em> = « c'est un appartement ». <em>metadata</em> = le nom sur la sonnette et les étiquettes. <em>spec</em> = le cahier des charges : qui habite (image), par quelle porte on entre (port). L'<em>apiVersion</em> indique juste quel service de la mairie traite ce type de demande.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Impératif vs déclaratif</span>
+      <h2>Créer un Pod, Deux Façons</h2>
+      <div class="panel"><p>La méthode <strong>impérative</strong> (rapide, pour tester) et la méthode <strong>déclarative</strong> (un fichier, la vraie bonne pratique). Les deux mènent au même appartement.</p>
+        <div class="code"><span class="cmt">=== Imperatif : une commande, pas de fichier ===</span>
+<span class="cmd">$</span> kubectl run web --image=nginx:1.25
+<span class="cmt">Astuce : generer le YAML sans rien creer (--dry-run + -o yaml)</span>
+<span class="cmd">$</span> kubectl run web --image=nginx:1.25 --dry-run=client -o yaml &gt; pod.yaml
+
+<span class="cmt">=== Declaratif : on ecrit pod.yaml, puis on l'applique ===</span>
+<span class="cmd">$</span> kubectl apply -f pod.yaml
+<span class="cmt">Re-appliquer le meme fichier ne casse rien : Kubernetes reconcilie</span>
+<span class="cmd">$</span> kubectl apply -f pod.yaml      <span class="cmt"># "unchanged"</span>
+<span class="cmt">Supprimer ce que decrit le fichier</span>
+<span class="cmd">$</span> kubectl delete -f pod.yaml</div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">En production, on n'utilise quasiment <em>que</em> le déclaratif : les fichiers YAML sont la mémoire écrite du cluster, versionnés dans Git. L'impératif sert à explorer ou dépanner. Le <em>--dry-run -o yaml</em> est le meilleur ami du débutant : il génère un squelette correct qu'on n'a plus qu'à ajuster.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · La vie d'un appartement</span>
+      <h2>Cycle de Vie & restartPolicy</h2>
+      <div class="panel"><p>Un pod traverse des <strong>phases</strong>, visibles dans la colonne STATUS. Les connaître, c'est savoir lire ce qui se passe.</p></div>
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="mini-card"><h3>Pending</h3><p>Accepté mais pas encore démarré : image en cours de téléchargement, ou en attente d'un immeuble.</p></div>
+        <div class="mini-card"><h3>Running</h3><p>Au moins un conteneur tourne. L'état que l'on vise pour un service.</p></div>
+        <div class="mini-card"><h3>Succeeded / Failed</h3><p>Le conteneur a terminé : avec succès (code 0) ou en échec. Typique des tâches ponctuelles.</p></div>
+      </div>
+      <div class="panel" style="margin-top:22px;"><p>La <strong>restartPolicy</strong> du pod décide quoi faire quand un conteneur s'arrête : <em>Always</em> (toujours relancer , défaut, pour un service), <em>OnFailure</em> (relancer seulement en cas d'échec), <em>Never</em> (ne jamais relancer). Si un conteneur boucle en plantant, vous verrez le statut <em>CrashLoopBackOff</em> : Kubernetes le relance, mais espace de plus en plus les tentatives.</p></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt"><em>CrashLoopBackOff</em> = un habitant qui s'évanouit dès qu'on le relève. Le gardien le réanime, encore et encore, mais attend de plus en plus longtemps entre deux essais pour ne pas s'épuiser. C'est un signal : il faut regarder <em>pourquoi</em> il tombe (les logs).</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Colocataires & travaux</span>
+      <h2>Multi-Conteneurs & Init</h2>
+      <div class="panel"><p>Un pod peut héberger <strong>plusieurs conteneurs</strong> (motif « sidecar » : un conteneur principal + un assistant) et lancer des <strong>initContainers</strong> qui s'exécutent <em>avant</em>, jusqu'au bout, dans l'ordre.</p>
+        <div class="code"><span class="key">spec:</span>
+  <span class="key">initContainers:</span>          <span class="cmt"># les "ouvriers" : tournent AVANT, puis partent</span>
+  - <span class="key">name:</span> <span class="val">preparation</span>
+    <span class="key">image:</span> <span class="val">busybox:1.36</span>
+    <span class="key">command:</span> [<span class="val">'sh'</span>, <span class="val">'-c'</span>, <span class="val">'echo prepa && sleep 3'</span>]
+  <span class="key">containers:</span>               <span class="cmt"># les "colocataires" : tournent ensemble</span>
+  - <span class="key">name:</span> <span class="val">web</span>
+    <span class="key">image:</span> <span class="val">nginx:1.25</span>
+  - <span class="key">name:</span> <span class="val">assistant</span>      <span class="cmt"># sidecar : ex. collecte de logs</span>
+    <span class="key">image:</span> <span class="val">busybox:1.36</span>
+    <span class="key">command:</span> [<span class="val">'sh'</span>,<span class="val">'-c'</span>,<span class="val">'while true; do echo tick; sleep 5; done'</span>]</div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Les <em>initContainers</em> sont les <em>ouvriers</em> qui peignent les murs et branchent l'eau avant l'emménagement : ils finissent leur travail, puis s'en vont. Les <em>containers</em> sont les <em>colocataires</em> permanents qui vivent ensemble dans l'appartement et partagent la cuisine.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Le médecin & le panneau</span>
+      <h2>Les Sondes (Probes)</h2>
+      <div class="panel"><p>Comment Kubernetes sait-il qu'un conteneur va bien ? Avec des <strong>sondes</strong> qui l'interrogent régulièrement. Trois types, trois rôles distincts.</p></div>
+      <div class="grid-3" style="margin-top:20px;">
+        <div class="mini-card"><div class="mini-num">♥</div><h3>livenessProbe</h3><p>« Es-tu vivant ? » Si la réponse cesse, Kubernetes <strong>redémarre</strong> le conteneur.</p><span class="mini-tag">le médecin</span></div>
+        <div class="mini-card"><div class="mini-num">⊙</div><h3>readinessProbe</h3><p>« Es-tu prêt à recevoir du monde ? » Si non, on <strong>coupe le trafic</strong> vers lui (sans le tuer).</p><span class="mini-tag">panneau ouvert/fermé</span></div>
+        <div class="mini-card"><div class="mini-num">⏱</div><h3>startupProbe</h3><p>Délai de grâce pour les démarrages lents : tant qu'elle n'a pas réussi, les autres sondes attendent.</p><span class="mini-tag">le réveil en douceur</span></div>
+      </div>
+      <div class="panel" style="margin-top:20px;"><div class="code"><span class="key">livenessProbe:</span>           <span class="cmt"># interroge GET / sur le port 80</span>
+  <span class="key">httpGet:</span> { <span class="key">path:</span> <span class="val">/</span>, <span class="key">port:</span> <span class="val">80</span> }
+  <span class="key">initialDelaySeconds:</span> <span class="val">5</span>     <span class="cmt"># attendre 5s avant la 1ere verif</span>
+  <span class="key">periodSeconds:</span> <span class="val">10</span>          <span class="cmt"># puis verifier toutes les 10s</span>
+<span class="key">readinessProbe:</span>
+  <span class="key">httpGet:</span> { <span class="key">path:</span> <span class="val">/</span>, <span class="key">port:</span> <span class="val">80</span> }
+  <span class="key">periodSeconds:</span> <span class="val">5</span></div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Réservation & plafond</span>
+      <h2>Ressources : requests & limits</h2>
+      <div class="panel">
+        <p>On précise au syndic combien de ressources un conteneur réserve et combien il a le droit de consommer au maximum. Deux notions :</p>
+        <p><strong>requests</strong> , la <em>réservation garantie</em>. Le scheduler s'en sert pour choisir un immeuble qui a vraiment la place. <strong>limits</strong> , le <em>plafond</em>. Dépasser la limite mémoire = expulsion immédiate (OOMKilled) ; dépasser la limite CPU = simple ralentissement.</p>
+        <div class="code"><span class="key">resources:</span>
+  <span class="key">requests:</span>               <span class="cmt"># garanti / sert au placement</span>
+    <span class="key">memory:</span> <span class="val">"64Mi"</span>
+    <span class="key">cpu:</span> <span class="val">"100m"</span>        <span class="cmt"># 100m = 0,1 coeur de CPU</span>
+  <span class="key">limits:</span>                 <span class="cmt"># plafond a ne pas depasser</span>
+    <span class="key">memory:</span> <span class="val">"128Mi"</span>
+    <span class="key">cpu:</span> <span class="val">"200m"</span></div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt"><em>requests</em> = la surface réservée au bail, que l'agent immobilier garantit avant d'attribuer l'appartement. <em>limits</em> = le plafond de consommation : trop d'eau, on coupe ; trop de bruit, on expulse. Sans <em>requests</em>, l'agent loge à l'aveugle et peut surcharger un immeuble.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Les conteneurs d'un même pod partagent l'adresse IP et peuvent se parler via localhost.</div></div>
+            <div class="flip-back"><div class="b-title">Colocataires</div><p>Oui : un pod = un réseau partagé. C'est tout l'intérêt de l'enveloppe pod par rapport à des conteneurs isolés.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">La readinessProbe redémarre le conteneur quand elle échoue.</div></div>
+            <div class="flip-back"><div class="b-title">Confusion fréquente</div><p>Non : c'est la <em>liveness</em>Probe qui redémarre. La <em>readiness</em>Probe coupe seulement le trafic, sans tuer le conteneur.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">Les initContainers s'exécutent jusqu'à la fin, dans l'ordre, avant que les conteneurs principaux démarrent.</div></div>
+            <div class="flip-back"><div class="b-title">Les ouvriers d'abord</div><p>Exact. Idéal pour préparer le terrain (attendre une base de données, télécharger un fichier) avant l'emménagement.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">Dépasser la limite mémoire d'un conteneur provoque sa terminaison (OOMKilled).</div></div>
+            <div class="flip-back"><div class="b-title">Plafond mémoire strict</div><p>Oui. La mémoire ne se « ralentit » pas : au-delà de la limite, le conteneur est tué. Le CPU, lui, est seulement bridé.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Atelier</span>
+      <h2>Atelier 4 : un Appartement Complet</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 04 · Entièrement guidé</span>
+        <h3>Un pod avec init, sonde et ressources, observé en direct</h3>
+        <p>On crée un appartement réaliste : un ouvrier qui prépare, un serveur web surveillé par une sonde, et des ressources cadrées. Copiez le fichier, appliquez, observez.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">1. Écrire le manifeste (copier-coller dans un terminal)</div><div class="code"><span class="cmd">$</span> cat &gt; pod-complet.yaml &lt;&lt;'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-complet
+  labels: { app: demo }
+spec:
+  initContainers:
+  - name: preparation
+    image: busybox:1.36
+    command: ['sh','-c','echo "Prepa..." && sleep 5']
+  containers:
+  - name: web
+    image: nginx:1.25
+    ports: [{ containerPort: 80 }]
+    readinessProbe:
+      httpGet: { path: /, port: 80 }
+      initialDelaySeconds: 3
+    resources:
+      requests: { memory: "64Mi", cpu: "100m" }
+      limits:   { memory: "128Mi", cpu: "200m" }
+EOF</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">2. Appliquer et observer le cycle de vie</div><div class="code"><span class="cmd">$</span> kubectl apply -f pod-complet.yaml
+<span class="cmt">Suivre en direct : Init -> PodInitializing -> Running</span>
+<span class="cmd">$</span> kubectl get pod app-complet -w        <span class="cmt"># Ctrl+C pour stopper</span>
+<span class="cmt">Voir le detail des conteneurs et les events</span>
+<span class="cmd">$</span> kubectl describe pod app-complet
+<span class="cmt">Lire les logs de l'ouvrier, puis du serveur web</span>
+<span class="cmd">$</span> kubectl logs app-complet -c preparation
+<span class="cmd">$</span> kubectl logs app-complet -c web</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Validation & nettoyage</div>
+          <p>Réussi si vous avez vu le statut passer par <em>Init</em> (les 5 secondes de l'ouvrier) avant <em>Running</em>, et si <em>describe</em> montre la readinessProbe et les ressources. Nettoyez : <em>kubectl delete -f pod-complet.yaml</em>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide" data-n="10">
+    <div class="content">
+      <span class="step-label">Étape 10 · Conclusion</span>
+      <h2>Récapitulatif du Module 4</h2>
+      <div class="panel"><ul>
+        <li><strong>Le pod = l'appartement :</strong> un ou plusieurs conteneurs partageant IP, localhost et stockage local.</li>
+        <li><strong>Le squelette YAML :</strong> apiVersion, kind, metadata, spec , commun à tous les objets.</li>
+        <li><strong>Cycle de vie :</strong> Pending > Running > Succeeded/Failed, et la restartPolicy (gare au CrashLoopBackOff).</li>
+        <li><strong>Init + sidecar :</strong> les ouvriers tournent avant ; les colocataires tournent ensemble.</li>
+        <li><strong>Santé & ressources :</strong> liveness (redémarre), readiness (coupe le trafic), requests (réserve), limits (plafond).</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Un pod tout seul reste fragile : si l'appartement brûle, personne ne le reconstruit. C'est tout l'objet du module suivant : un <em>contrat de gestion</em> qui garantit que les appartements restent occupés, quoi qu'il arrive.</div></div>
+      <a href="module-5.html" class="next-mod">Module 5 : Déploiements & Mise à l'Échelle ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 10;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

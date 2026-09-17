@@ -1,0 +1,79 @@
+# =============================================================================
+# STEP 5 - The cache (EX-02, EX-03, EX-05, EX-10)
+# =============================================================================
+# The trivial one. No environment variables, no volume, no secret.
+#
+# EX-05 is answered here by what is absent: there is no PVC and no
+# volumeMount. The two flags below make that choice explicit rather than
+# implicit - Redis is told not to write an RDB snapshot and not to keep an
+# append-only file, so it stays a pure in-memory cache.
+#
+# Apply:
+#   kubectl apply -f 05-redis.yaml
+# Check:
+#   kubectl exec deploy/redis -n cloud -- redis-cli ping     # -> PONG
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: cloud
+  labels:
+    app: redis
+    tier: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        tier: cache
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+            # A cache must have a ceiling and an eviction policy, otherwise it
+            # grows until the memory limit kills the container.
+            - --maxmemory
+            - "192mb"
+            - --maxmemory-policy
+            - allkeys-lru
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cloud
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

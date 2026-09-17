@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 10 · Ingress</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #ff7b72; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .code .key { color: #79c0ff; }
+    .code .val { color: #a5d6ff; }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · Le problème</span>
+      <h1>Ingress</h1>
+      <div class="panel">
+        <p>Pour exposer une appli, on a utilisé NodePort. Mais imaginez dix applications : dix NodePorts, dix ports bizarres à retenir (30001, 30002…), aucun nom de domaine, aucun HTTPS centralisé. Ingérable.</p>
+        <p>L'<strong>Ingress</strong> est la solution : <strong>un seul point d'entrée</strong> pour tout le cluster, qui aiguille le trafic HTTP/HTTPS vers le bon service selon le <em>nom de domaine</em> ou le <em>chemin</em> de l'URL. Un portier intelligent, plutôt que dix portes dérobées.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Sans Ingress, chaque appartement aurait sa <em>propre porte donnant sur la rue</em>, avec un numéro à rallonge : le chaos. L'Ingress, c'est le <em>hall d'accueil unique</em> avec un <em>tableau des sonnettes</em> : le visiteur entre par une seule porte, annonce qui il vient voir, et le concierge l'oriente vers le bon appartement.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Deux objets distincts</span>
+      <h2>Règle vs Contrôleur</h2>
+      <div class="panel"><p>Point qui piège tout le monde : l'Ingress fonctionne grâce à <strong>deux choses séparées</strong>. L'une ne sert à rien sans l'autre.</p></div>
+      <div class="grid" style="margin-top:24px;">
+        <div class="mini-card"><h3>La ressource Ingress</h3><p>Le <em>fichier de règles</em> que vous écrivez : « monsite.local > service web ». C'est juste une intention, une liste d'aiguillages.</p></div>
+        <div class="mini-card"><h3>L'Ingress Controller</h3><p>Le <em>logiciel qui exécute</em> ces règles : un reverse-proxy (souvent nginx) qui tourne dans le cluster et lit vos Ingress. Sans lui, vos règles sont lettre morte.</p></div>
+      </div>
+      <div class="panel" style="margin-top:24px;"><p>Sur Minikube, le contrôleur n'est pas actif par défaut : c'est un <strong>addon</strong> à activer (slide suivante). Sur un vrai cluster, c'est à l'admin de l'installer.</p></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">La ressource Ingress est la <em>liste des correspondances</em> affichée au tableau (« Dupont = 3e gauche »). Le contrôleur est le <em>concierge en chair et en os</em> qui lit ce tableau et accompagne réellement le visiteur. Une liste sans concierge ne mène personne nulle part.</div></div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Embaucher le concierge</span>
+      <h2>Activer le Contrôleur</h2>
+      <div class="panel"><p>Minikube embarque un contrôleur ingress-nginx, prêt à activer en une commande :</p>
+      <div class="code"><span class="cmt">Activer le contrôleur Ingress</span>
+<span class="cmd">$</span> minikube addons enable ingress
+<span class="cmt">Verifier qu'il tourne (patienter qu'il soit Running)</span>
+<span class="cmd">$</span> kubectl get pods -n ingress-nginx
+<span class="cmt">Lister les addons et leur etat</span>
+<span class="cmd">$</span> minikube addons list | grep ingress</div></div>
+      <div class="prod"><span class="prod-lbl">Minikube vs Kubernetes réel</span><div class="prod-txt">Ici, un addon suffit. Sur un vrai cluster, on <em>installe</em> le contrôleur soi-même (souvent ingress-nginx ou Traefik) via Helm, et il s'adosse à un LoadBalancer cloud qui lui donne une IP publique. Le concept de règles Ingress est identique partout ; seul le déploiement du concierge change.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Aiguiller par nom</span>
+      <h2>Routage par Domaine</h2>
+      <div class="panel"><p>Premier aiguillage : selon le nom de domaine demandé. Soit un service <em>web</em> déjà déployé et exposé (en ClusterIP suffit).</p>
+      <div class="code"><span class="cmt">ingress-host.yaml</span>
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: site-ingress
+spec:
+  rules:
+  - host: monsite.local            <span class="cmt"># le nom demande...</span>
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web              <span class="cmt"># ...mene a ce service</span>
+            port: { number: 80 }
+<span class="cmd">$</span> kubectl apply -f ingress-host.yaml
+<span class="cmd">$</span> kubectl get ingress           <span class="cmt"># colonne ADDRESS = l'IP du cluster</span></div></div>
+      <div class="panel" style="margin-top:20px;"><p>Comme <em>monsite.local</em> n'est pas un vrai domaine, on l'ajoute manuellement à notre fichier hosts pour qu'il pointe vers Minikube :</p>
+      <div class="code"><span class="cmt">Faire pointer monsite.local vers l'IP de Minikube</span>
+<span class="cmd">$</span> echo "$(minikube ip) monsite.local" | sudo tee -a /etc/hosts
+<span class="cmt">Tester !</span>
+<span class="cmd">$</span> curl http://monsite.local</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Aiguiller par chemin</span>
+      <h2>Routage par Chemin</h2>
+      <div class="panel"><p>Encore plus puissant : un seul domaine, mais plusieurs services selon le <em>chemin</em> de l'URL. Idéal pour une API et un front, ou plusieurs micro-services.</p>
+      <div class="code"><span class="cmt">ingress-path.yaml : un domaine, deux destinations</span>
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: multi-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: monsite.local
+    http:
+      paths:
+      - path: /app1               <span class="cmt"># monsite.local/app1</span>
+        pathType: Prefix
+        backend:
+          service: { name: web1, port: { number: 80 } }
+      - path: /app2               <span class="cmt"># monsite.local/app2</span>
+        pathType: Prefix
+        backend:
+          service: { name: web2, port: { number: 80 } }
+<span class="cmd">$</span> kubectl apply -f ingress-path.yaml</div></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Même hall d'accueil (un seul domaine), mais le concierge lit la <em>destination précise</em> sur le badge du visiteur : « aile 1 » ou « aile 2 ». Une seule entrée, des dizaines de chemins possibles à l'intérieur.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Une ressource Ingress sans Ingress Controller installé n'a aucun effet.</div></div>
+            <div class="flip-back"><div class="b-title">Liste + concierge</div><p>L'Ingress n'est qu'un jeu de règles. Sans contrôleur (le proxy qui les applique), rien n'est routé. Sur Minikube : <em>minikube addons enable ingress</em>.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">Un Ingress peut router vers différents services selon le nom de domaine ou le chemin de l'URL.</div></div>
+            <div class="flip-back"><div class="b-title">Host & path</div><p>C'est tout son intérêt : un point d'entrée unique, des aiguillages par domaine et/ou par chemin vers plusieurs services.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">L'Ingress remplace totalement les Services : on n'a plus besoin de Service pour les pods routés.</div></div>
+            <div class="flip-back"><div class="b-title">Ingress > Service > Pods</div><p>L'Ingress route vers des <em>Services</em>, qui eux atteignent les pods. Les deux travaillent ensemble, l'Ingress en façade.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">Sur Minikube, un domaine fictif comme monsite.local fonctionne sans aucune configuration locale.</div></div>
+            <div class="flip-back"><div class="b-title">/etc/hosts</div><p>Le domaine n'existant pas, il faut le faire pointer vers l'IP de Minikube dans <em>/etc/hosts</em> pour que le navigateur le résolve.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Atelier</span>
+      <h2>Atelier 10 : Un Hall, Deux Ailes</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 10 · Entièrement guidé</span>
+        <h3>Router deux applications derrière un seul domaine</h3>
+        <p>On déploie deux nginx distincts et on les expose via un Ingress par chemin. Prérequis : Minikube démarré.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">1 · Activer le contrôleur</div><div class="code"><span class="cmd">$</span> minikube addons enable ingress
+<span class="cmd">$</span> kubectl get pods -n ingress-nginx   <span class="cmt"># attendre Running</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">2 · Déployer deux apps et leurs services</div><div class="code"><span class="cmd">$</span> kubectl create deployment web1 --image=nginx
+<span class="cmd">$</span> kubectl create deployment web2 --image=httpd
+<span class="cmd">$</span> kubectl expose deployment web1 --port=80
+<span class="cmd">$</span> kubectl expose deployment web2 --port=80</div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">3 · Appliquer l'Ingress et router</div><div class="code"><span class="cmt">Sauvegarder ingress-path.yaml (etape 5) puis :</span>
+<span class="cmd">$</span> kubectl apply -f ingress-path.yaml
+<span class="cmd">$</span> echo "$(minikube ip) monsite.local" | sudo tee -a /etc/hosts
+<span class="cmt">Tester les deux chemins (nginx vs apache)</span>
+<span class="cmd">$</span> curl http://monsite.local/app1     <span class="cmt"># page nginx</span>
+<span class="cmd">$</span> curl http://monsite.local/app2     <span class="cmt"># 'It works!' d'apache</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Validation</div>
+          <p>Réussi si <em>/app1</em> renvoie la page nginx et <em>/app2</em> renvoie le « It works! » d'Apache , preuve qu'un <em>seul</em> point d'entrée aiguille vers deux services selon le chemin. Nettoyage : <em>kubectl delete deployment,service web1 web2 ; kubectl delete ingress multi-ingress</em>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · Pour aller plus loin</span>
+      <h2>HTTPS &amp; Production</h2>
+      <div class="panel">
+        <p>En production, l'Ingress est l'endroit naturel pour gérer le <strong>HTTPS</strong> : on y termine le chiffrement TLS une fois, et tout le trafic interne reste simple derrière.</p>
+        <p>On ne gère plus les certificats à la main : l'outil <strong>cert-manager</strong> obtient et renouvelle automatiquement des certificats (par exemple via Let's Encrypt), et les branche sur l'Ingress.</p>
+        <div class="code"><span class="cmt">Extrait d'un Ingress avec TLS (concept de production)</span>
+spec:
+  tls:
+  - hosts: [monsite.com]
+    secretName: monsite-tls       <span class="cmt"># certificat gere par cert-manager</span>
+  rules:
+  - host: monsite.com
+    ...</div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Minikube vs Kubernetes réel</span><div class="prod-txt">Sur Minikube on teste en HTTP avec un domaine bidon. En production : un vrai domaine pointant vers le LoadBalancer du contrôleur, cert-manager qui émet le certificat, et le HTTPS « juste marche ». L'Ingress devient la porte blindée et chiffrée de la résidence.</div></div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Conclusion</span>
+      <h2>Récapitulatif du Module 10</h2>
+      <div class="panel"><ul>
+        <li><strong>Ingress = point d'entrée unique HTTP/HTTPS,</strong> au lieu de multiplier les NodePorts.</li>
+        <li><strong>Deux objets :</strong> la <em>ressource</em> Ingress (les règles) et le <em>contrôleur</em> (qui les exécute) , l'un sans l'autre est inutile.</li>
+        <li><strong>Sur Minikube :</strong> <em>minikube addons enable ingress</em> + entrée dans <em>/etc/hosts</em>.</li>
+        <li><strong>Routage par domaine et par chemin :</strong> un hall, des dizaines de destinations.</li>
+        <li><strong>En prod :</strong> TLS terminé sur l'Ingress, certificats automatisés par cert-manager.</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Fin du jour 3 : la résidence a des adresses, des caves, des coffres et un vrai hall d'accueil. Demain, on passe administrateur : décider <em>qui habite où</em>, <em>qui a le droit d'entrer</em>, déployer des apps clé en main, et savoir réparer quand tout s'effondre.</div></div>
+      <a href="module-11.html" class="next-mod">Module 11 : Planification Avancée ></a>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 9;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

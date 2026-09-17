@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Challenge Jour 3 · La Migration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #f778ba; --c2: #ffa657;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul, .panel ol { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(255,166,87,0.05); border: 1px solid rgba(255,166,87,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: 0.95rem; margin-top: 6px; }
+    table.spec th, table.spec td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.spec th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); font-weight: 700; }
+    table.spec td.ref { font-family: var(--font-mono); color: var(--c2); white-space: nowrap; font-size: 0.85rem; }
+    table.spec td.pts { text-align: right; font-family: var(--font-mono); color: var(--c1); white-space: nowrap; }
+    .spoiler { position: relative; margin-top: 6px; }
+    .sp-body { filter: blur(7px); transition: filter 0.45s; user-select: none; }
+    .spoiler.revealed .sp-body { filter: none; user-select: auto; }
+    .sp-btn { display: inline-block; cursor: pointer; margin-bottom: 14px; padding: 8px 20px; border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.78rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .sp-btn:hover { background: rgba(255,255,255,0.09); }
+    .timer { display: inline-block; font-family: var(--font-mono); font-size: 0.8rem; color: var(--c2); border: 1px solid var(--line); padding: 4px 14px; border-radius: 50px; margin-left: 10px; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Challenge Jour 3 · Modules 7 à 10<span class="timer">2 heures</span></span>
+      <h1>La Migration</h1>
+      <div class="panel">
+        <p>Un client vous confie son application : un <strong>cloud de fichiers d'entreprise</strong> en trois tiers. Elle tourne aujourd'hui sur un vieux serveur, et il veut la voir vivre dans la résidence.</p>
+        <p>Il ne vous donne <strong>aucun manifeste Kubernetes</strong>. Il vous donne un cahier des charges, trois images, et une liste d'exigences non négociables. À vous de traduire.</p>
+        <p>C'est le premier exercice du cursus où <em>rien n'est à recopier</em>. Vous connaissez tous les objets nécessaires depuis ce matin : Deployment, Service, PVC, ConfigMap, Secret, Ingress. Il s'agit maintenant de les assembler comme un professionnel le ferait le premier jour d'une mission.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Trois locataires qui doivent cohabiter : le <em>commerce en vitrine</em> que tout le monde voit, la <em>réserve</em> en sous-sol où sont stockés les registres, et le <em>vestiaire</em> où l'on dépose ce qui ne sert qu'un instant. Un seul a le droit d'avoir une adresse sur la rue. Les deux autres ne se joignent que par l'interphone interne.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · Le contexte</span>
+      <h2>Ce que le Client vous Donne</h2>
+      <div class="grid-3">
+        <div class="mini-card">
+          <div class="mini-num">01</div>
+          <h3>La vitrine</h3>
+          <p>L'application web que les utilisateurs voient. Lourde à démarrer, elle s'installe toute seule au premier lancement.</p>
+          <span class="mini-tag">nextcloud:29-apache</span>
+        </div>
+        <div class="mini-card">
+          <div class="mini-num">02</div>
+          <h3>La réserve</h3>
+          <p>La base de données. Contient tout ce qui ne doit jamais être perdu : comptes, partages, métadonnées.</p>
+          <span class="mini-tag">mariadb:10.11</span>
+        </div>
+        <div class="mini-card">
+          <div class="mini-num">03</div>
+          <h3>Le vestiaire</h3>
+          <p>Le cache mémoire. Accélère les sessions et les verrous de fichiers. Son contenu est jetable par nature.</p>
+          <span class="mini-tag">redis:7-alpine</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:24px;">
+        <p><strong>Les variables d'environnement attendues par les images</strong> , c'est la seule documentation technique que le client vous fournit. À vous de décider lesquelles viennent d'un ConfigMap et lesquelles d'un Secret.</p>
+        <div class="code">nextcloud   MYSQL_HOST  MYSQL_DATABASE  MYSQL_USER  MYSQL_PASSWORD
+            REDIS_HOST  NEXTCLOUD_ADMIN_USER  NEXTCLOUD_ADMIN_PASSWORD
+            NEXTCLOUD_TRUSTED_DOMAINS
+            donnees persistantes dans  /var/www/html
+
+mariadb     MARIADB_ROOT_PASSWORD  MARIADB_DATABASE
+            MARIADB_USER  MARIADB_PASSWORD
+            donnees persistantes dans  /var/lib/mysql
+            arguments requis par Nextcloud :
+              --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+
+redis       aucune variable requise, ecoute sur 6379</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Cahier des charges</span>
+      <h2>Les Exigences Fonctionnelles</h2>
+      <div class="panel" style="padding:28px 32px;">
+        <table class="spec">
+          <tr><th>Réf.</th><th>Exigence</th><th>Pts</th></tr>
+          <tr><td class="ref">EX-01</td><td>Tout vit dans un namespace dédié nommé <em>cloud</em>.</td><td class="pts">2</td></tr>
+          <tr><td class="ref">EX-02</td><td>Les trois tiers tournent en <strong>Deployment</strong>, un réplica chacun.</td><td class="pts">6</td></tr>
+          <tr><td class="ref">EX-03</td><td>Chaque tier est joignable par un <strong>nom stable</strong>, indépendant de l'IP du pod.</td><td class="pts">6</td></tr>
+          <tr><td class="ref">EX-04</td><td>Les données de la base <strong>survivent</strong> à la suppression de son pod. Idem pour les fichiers de l'application.</td><td class="pts">8</td></tr>
+          <tr><td class="ref">EX-05</td><td>Le cache, lui, n'a <strong>aucun</strong> stockage persistant. Justifier ce choix par écrit.</td><td class="pts">2</td></tr>
+          <tr><td class="ref">EX-06</td><td>Aucun mot de passe n'apparaît <strong>en clair</strong> dans un manifeste, ni dans une variable d'environnement écrite en dur.</td><td class="pts">8</td></tr>
+          <tr><td class="ref">EX-07</td><td>Les valeurs <strong>non sensibles</strong> (nom de base, hôtes, domaine de confiance) sont centralisées ailleurs que dans le Deployment.</td><td class="pts">4</td></tr>
+          <tr><td class="ref">EX-08</td><td>La base de données n'est <strong>joignable d'aucune manière</strong> depuis l'extérieur du cluster.</td><td class="pts">6</td></tr>
+          <tr><td class="ref">EX-09</td><td>Un <strong>unique point d'entrée HTTP</strong> sur le nom <em>nextcloud.local</em>. Pas de NodePort, pas de port-forward dans la solution finale.</td><td class="pts">8</td></tr>
+          <tr><td class="ref">EX-10</td><td><strong>requests et limits</strong> déclarés sur les trois tiers, sans exception.</td><td class="pts">4</td></tr>
+          <tr><td class="ref">EX-11</td><td>Une <strong>readinessProbe</strong> sur l'application web, correctement calibrée pour son temps d'installation.</td><td class="pts">6</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Les pièges</span>
+      <h2>Ce que le Client a Oublié de vous Dire</h2>
+      <div class="panel">
+        <p>Ces quatre points ne sont pas des indices facultatifs. Sans eux, vous allez perdre une heure et conclure à tort que votre configuration est fausse.</p>
+        <ul>
+          <li><strong>L'installation initiale prend 2 à 4 minutes.</strong> Au premier démarrage, l'application déroule son installeur : elle crée ses tables, génère sa configuration, écrit ses fichiers. Pendant tout ce temps elle ne répond pas, ou répond une erreur. <strong>Ce n'est pas une panne.</strong> Si votre readinessProbe interroge trop tôt et trop sévèrement, elle tuera le pod en pleine installation, en boucle, pour toujours. C'est le sens de l'EX-11.</li>
+          <li><strong>L'ordre de démarrage n'est pas garanti.</strong> Rien n'empêche l'application de démarrer avant que la base ne soit prête. Le pod va redémarrer une ou deux fois avant de trouver son compte , acceptable ici, mais réfléchissez à ce que vous feriez en production.</li>
+          <li><strong>Le domaine de confiance.</strong> L'application refuse toute requête dont l'en-tête <em>Host</em> ne figure pas dans sa liste blanche, avec un message d'erreur explicite. Le nom que vous mettrez dans l'Ingress doit correspondre à celui déclaré dans la configuration.</li>
+          <li><strong>La résolution du nom depuis votre navigateur.</strong> <em>nextcloud.local</em> n'existe dans aucun DNS du monde. À vous de faire pointer ce nom vers l'IP du cluster sur votre machine.</li>
+        </ul>
+      </div>
+      <div class="prod"><span class="prod-lbl">Avant de commencer , 2 minutes</span><div class="prod-txt">Vérifiez que le contrôleur d'entrée tourne : <em>kubectl get pods -n ingress-nginx</em>. Et préparez la résolution de nom : <em>echo "$(minikube ip) nextcloud.local" | sudo tee -a /etc/hosts</em>.</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Méthode</span>
+      <h2>L'Ordre dans Lequel Travailler</h2>
+      <div class="lab">
+        <span class="lab-badge">Méthode · conseillée, pas imposée</span>
+        <h3>Construire de bas en haut, valider à chaque étage</h3>
+        <p>La faute classique est de tout écrire puis de tout appliquer d'un coup, et de se retrouver avec quatre pannes simultanées impossibles à démêler. Montez un étage à la fois.</p>
+        <ol>
+          <li><strong>Le namespace</strong>, et s'y positionner par défaut.</li>
+          <li><strong>Les secrets et la configuration</strong> d'abord. Ils ne dépendent de rien, et tout dépend d'eux.</li>
+          <li><strong>Les demandes de stockage.</strong> Vérifiez qu'elles passent en <em>Bound</em> avant d'aller plus loin , un PVC bloqué en Pending bloquera le pod, sans que ce soit la faute du pod.</li>
+          <li><strong>La réserve</strong> (base de données) seule. Validez-la en vous y connectant depuis un pod jetable avant de brancher quoi que ce soit dessus.</li>
+          <li><strong>Le vestiaire</strong> (cache). Trivial, deux minutes.</li>
+          <li><strong>La vitrine</strong> (application). Suivez son démarrage dans les logs, pas dans <em>get pods</em>.</li>
+          <li><strong>Le hall d'accueil</strong> (Ingress) en dernier, une fois que l'application répond en interne.</li>
+        </ol>
+        <div class="lab-section">
+          <div class="lab-section-title">Le pod jetable qui sert à tout tester</div>
+          <div class="code"><span class="cmt">Un shell temporaire DANS le cluster, supprime a la sortie</span>
+<span class="cmd">$</span> kubectl run debug -it --rm --image=busybox:1.36 --restart=Never -- sh
+<span class="cmt">Depuis ce shell : le DNS interne repond-il ?</span>
+<span class="cmt">  nslookup mariadb</span>
+<span class="cmt">  wget -qO- http://nextcloud/status.php</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Recette</span>
+      <h2>La Recette d'Acceptation</h2>
+      <div class="panel">
+        <p>Le client ne relira pas vos manifestes. Il passera <strong>ces sept tests</strong>. Exécutez-les vous-même : c'est votre note.</p>
+      </div>
+      <div class="lab" style="margin-top:20px;">
+        <span class="lab-badge">7 tests · à passer dans l'ordre</span>
+        <h3>Ce que le client va vérifier devant vous</h3>
+        <div class="code"><span class="cmt">TEST 1 - Tout tourne, rien ne redemarre en boucle</span>
+<span class="cmd">$</span> kubectl get pods -n cloud
+<span class="cmt">TEST 2 - Le stockage est bien reserve (les deux en Bound)</span>
+<span class="cmd">$</span> kubectl get pvc -n cloud
+<span class="cmt">TEST 3 - Aucun mot de passe en clair dans vos fichiers</span>
+<span class="cmd">$</span> grep -riE "password|motdepasse" *.yaml | grep -v "SecretKeyRef\|secretKeyRef\|name:"
+<span class="cmt">TEST 4 - La base n'est PAS exposee (aucun NodePort/LoadBalancer)</span>
+<span class="cmd">$</span> kubectl get svc -n cloud
+<span class="cmt">TEST 5 - Le DNS interne fonctionne entre les tiers</span>
+<span class="cmd">$</span> kubectl run t -it --rm --image=busybox:1.36 --restart=Never -n cloud -- nslookup mariadb
+<span class="cmt">TEST 6 - LE TEST QUI COMPTE : la persistance</span>
+<span class="cmt">  a) creer un compte utilisateur dans l'interface web</span>
+<span class="cmd">$</span> kubectl delete pod -l app=mariadb -n cloud
+<span class="cmt">  b) attendre le redemarrage, se reconnecter : le compte est toujours la ?</span>
+<span class="cmt">TEST 7 - Un seul point d'entree, par le nom de domaine</span>
+<span class="cmd">$</span> curl -I -H "Host: nextcloud.local" http://$(minikube ip)</div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Le test 6 est le cœur du sujet</span><div class="maison-txt">C'est la seule preuve qui compte. Un pod qui redémarre en perdant les données du client, c'est un incident. Un pod qui redémarre et retrouve tout, c'est le métier. Tout le module 8 tient dans ce test.</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Aller plus loin</span>
+      <h2>Bonus pour les Plus Rapides</h2>
+      <div class="panel">
+        <ul>
+          <li><strong>Bonus 1 , les gros fichiers (3 pts).</strong> Tentez d'envoyer un fichier de plus de 1 Mio. Vous obtiendrez une erreur 413. Le contrôleur d'entrée impose une taille maximale par défaut. Trouvez l'annotation qui la relève, et expliquez pourquoi cette limite existe.</li>
+          <li><strong>Bonus 2 , le second site (3 pts).</strong> Ajoutez une seconde application derrière le <strong>même</strong> Ingress, routée par un chemin différent. Le hall d'accueil dessert alors deux ailes.</li>
+          <li><strong>Bonus 3 , le chiffrement (4 pts).</strong> Générez un certificat auto-signé, stockez-le dans un Secret de type <em>tls</em>, et servez le site en HTTPS. Votre navigateur criera au loup : expliquez précisément pourquoi, et ce qui changerait en production.</li>
+          <li><strong>Bonus 4 , la cure d'amaigrissement (2 pts).</strong> Relevez la consommation réelle avec <em>kubectl top pods -n cloud</em> et ajustez vos requests au plus juste. Comparez à ce que vous aviez estimé au départ.</li>
+        </ul>
+      </div>
+      <div class="prod"><span class="prod-lbl">Si vous êtes bloqué plus de 15 minutes</span><div class="prod-txt">Trois réflexes, toujours dans cet ordre : <em>kubectl describe pod</em> et lire les Events du bas, <em>kubectl logs</em> et lire la <strong>première</strong> erreur pas la dernière, <em>kubectl get events --sort-by=.lastTimestamp</em> pour la chronologie complète. La réponse est presque toujours dans l'une de ces trois sorties.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · Corrigé</span>
+      <h2>Les Décisions Attendues</h2>
+      <div class="spoiler" id="sp1">
+        <span class="sp-btn" onclick="document.getElementById('sp1').classList.toggle('revealed')">Cliquer pour révéler le corrigé</span>
+        <div class="sp-body">
+          <div class="panel">
+            <p><strong>EX-03 , trois Services de type ClusterIP.</strong> Les noms <em>mariadb</em>, <em>redis</em> et <em>nextcloud</em> deviennent résolvables par le DNS interne. C'est ce qui permet de mettre <em>MYSQL_HOST=mariadb</em> sans jamais connaître une IP. Le nom complet est <em>mariadb.cloud.svc.cluster.local</em>, mais dans le même namespace le nom court suffit.</p>
+            <p><strong>EX-04 , deux PVC</strong>, un pour <em>/var/lib/mysql</em> et un pour <em>/var/www/html</em>, en <em>ReadWriteOnce</em>. La StorageClass par défaut de Minikube les provisionne automatiquement. Le test 6 ne peut réussir qu'avec ça.</p>
+            <p><strong>EX-05 , aucun volume pour Redis</strong>, et c'est délibéré : un cache ne contient que des données reconstructibles. Lui donner du stockage persistant coûterait de l'espace et de la complexité pour zéro bénéfice. Perdre un cache n'est pas perdre des données.</p>
+            <p><strong>EX-06 , un Secret</strong> contenant les mots de passe, injecté par <em>secretKeyRef</em> , jamais par <em>value</em>. Le piège classique : écrire le mot de passe dans le Secret, puis le recopier aussi en clair dans le Deployment « pour être sûr ». Cela annule tout l'intérêt.</p>
+            <p><strong>EX-07 , un ConfigMap</strong> pour <em>MYSQL_HOST</em>, <em>MYSQL_DATABASE</em>, <em>REDIS_HOST</em>, <em>NEXTCLOUD_TRUSTED_DOMAINS</em>. Rien de secret là-dedans, mais tout est centralisé : changer d'hôte de base ne demande pas de rouvrir trois Deployments.</p>
+            <p><strong>EX-08 , ClusterIP et rien d'autre.</strong> Il n'y a rien à « fermer » : un ClusterIP n'est <strong>par construction</strong> joignable que depuis l'intérieur du cluster. La faute à éviter est de mettre un NodePort sur la base « pour pouvoir la déboguer avec un client SQL ». On débogue avec <em>kubectl port-forward</em>, qui est temporaire et tracé.</p>
+            <p><strong>EX-11 , readinessProbe avec un <em>initialDelaySeconds</em> d'au moins 60 s</strong> et un <em>failureThreshold</em> généreux, sur <em>/status.php</em>. Et surtout : <strong>pas de livenessProbe agressive</strong> sur ce tier. Une liveness trop stricte tue le pod pendant l'installation et crée une boucle de redémarrage éternelle , la panne la plus frustrante de tout le cursus, parce que tout est correct par ailleurs.</p>
+          </div>
+        </div>
+      </div>
+      <div class="maison"><span class="maison-lbl">Nettoyage avant demain</span><div class="maison-txt"><em>kubectl scale deploy --all --replicas=0 -n cloud</em>. Les PVC et leurs données restent intacts : vous pourrez tout rallumer en une commande, et c'est aussi une démonstration de plus que le stockage est bien découplé du calcul.</div></div>
+      <a href="index.html" class="next-mod">Retour au sommaire ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 8;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module 2 · L'Architecture du Cluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d1117; --txt: #e6edf3; --muted: #8b949e;
+      --line: rgba(255, 255, 255, 0.1); --panel: rgba(255, 255, 255, 0.04);
+      --c1: #22d3ee; --c2: #3fb950;
+      --font-display: 'Instrument Serif', Georgia, serif; --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font-body); background: var(--bg); color: var(--txt); overflow: hidden; height: 100vh; }
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0.97) translateY(20px); transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: none; }
+    .slide.active { opacity: 1; transform: scale(1) translateY(0); pointer-events: all; z-index: 10; }
+    .blobs { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.15; }
+    .blob-1 { top: -10%; right: -5%; width: 500px; height: 500px; background: var(--c1); }
+    .blob-2 { bottom: -10%; left: -5%; width: 400px; height: 400px; background: var(--c2); }
+    .content { position: relative; z-index: 2; width: 100%; max-width: 1100px; padding: 40px; max-height: 85vh; overflow-y: auto; }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    .step-label { font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--c1); font-size: 0.75rem; margin-bottom: 16px; display: block; opacity: 0.8; }
+    h1 { font-family: var(--font-display); font-size: clamp(3.5rem, 5vw, 4.5rem); font-style: italic; line-height: 1.05; margin: 0 0 30px; background: linear-gradient(135deg, #fff, var(--c1)); -webkit-background-clip: text; color: transparent; }
+    h2 { font-family: var(--font-display); font-size: clamp(2.5rem, 4vw, 3.2rem); font-style: italic; margin: 0 0 24px; color: #fff; font-weight: 400; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 35px 40px; line-height: 1.8; font-size: 1.1rem; color: #c9d1d9; backdrop-filter: blur(12px); box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+    .panel p { margin: 0 0 20px; } .panel p:last-child { margin-bottom: 0; }
+    .panel strong { color: #fff; font-weight: 500; }
+    .panel ul { margin: 0; padding-left: 20px; } .panel li { margin-bottom: 12px; }
+    .panel em { color: var(--c1); font-style: normal; }
+    .panel ol { margin: 0; padding-left: 22px; } .panel ol li { margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .mini-card { padding: 22px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 16px; }
+    .mini-card h3 { margin: 0 0 10px; font-size: 1.05rem; color: #fff; font-weight: 500; }
+    .mini-card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.6; }
+    .mini-card .mini-num { font-family: var(--font-display); font-style: italic; font-size: 2rem; color: var(--c1); line-height: 1; margin-bottom: 8px; }
+    .mini-card .mini-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--c2); display: block; margin-top: 8px; }
+    .qcm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .flip-card { perspective: 1200px; height: 200px; cursor: pointer; }
+    .flip-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; padding: 25px; display: flex; flex-direction: column; justify-content: center; backdrop-filter: blur(10px); }
+    .flip-front { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); transition: background 0.3s, border-color 0.3s; }
+    .flip-front:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.2); }
+    .q-num { font-size: 0.8rem; font-weight: 700; color: var(--c1); margin-bottom: 10px; letter-spacing: 1px; }
+    .q-text { font-size: 1.05rem; font-weight: 500; color: #fff; line-height: 1.5; }
+    .flip-back { transform: rotateY(180deg); font-size: 0.95rem; line-height: 1.6; border: 1px solid transparent; }
+    .b-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .flip-card[data-correct="true"] .flip-back { background: rgba(63, 185, 80, 0.08); border-color: rgba(63, 185, 80, 0.3); box-shadow: 0 10px 30px rgba(63, 185, 80, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="true"] .b-title { color: #3fb950; }
+    .flip-card[data-correct="true"] .b-title::after { content: 'Vrai'; font-size: 0.8rem; padding: 2px 8px; background: rgba(63, 185, 80, 0.2); border-radius: 10px; }
+    .flip-card[data-correct="false"] .flip-back { background: rgba(248, 81, 73, 0.08); border-color: rgba(248, 81, 73, 0.3); box-shadow: 0 10px 30px rgba(248, 81, 73, 0.1); color: #e6edf3; }
+    .flip-card[data-correct="false"] .b-title { color: #f85149; }
+    .flip-card[data-correct="false"] .b-title::after { content: 'Faux'; font-size: 0.8rem; padding: 2px 8px; background: rgba(248, 81, 73, 0.2); border-radius: 10px; }
+    .maison { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); border-left: 3px solid var(--c1); border-radius: 12px; padding: 18px 24px; margin-top: 22px; }
+    .maison-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c1); margin-bottom: 8px; opacity: 0.85; }
+    .maison-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .maison-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .prod { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.18); border-left: 3px solid var(--c2); border-radius: 12px; padding: 18px 24px; margin-top: 18px; }
+    .prod-lbl { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--c2); margin-bottom: 8px; opacity: 0.9; }
+    .prod-txt { line-height: 1.7; color: #c9d1d9; font-size: 1.0rem; }
+    .prod-txt em { color: #e6edf3; font-style: normal; font-weight: 600; }
+    .lab { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--c1); border-radius: 24px; padding: 35px 40px; box-shadow: 0 0 60px rgba(0,0,0,0.3); }
+    .lab-badge { display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--c1); border-radius: 50px; color: var(--c1); font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .lab h3 { font-family: var(--font-display); font-style: italic; font-size: 1.7rem; margin: 0 0 18px; color: #fff; font-weight: 400; }
+    .lab-section { margin-top: 20px; }
+    .lab-section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--c1); margin-bottom: 10px; opacity: 0.85; }
+    .code { font-family: var(--font-mono); background: rgba(0,0,0,0.5); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; font-size: 0.88rem; color: #c9d1d9; overflow-x: auto; white-space: pre; line-height: 1.55; }
+    .code .cmt { color: #6e7681; font-style: italic; }
+    .code .cmd { color: var(--c1); }
+    .lab ol, .lab ul { margin: 0; padding-left: 20px; line-height: 1.7; color: #c9d1d9; font-size: 1rem; }
+    .lab li { margin-bottom: 8px; }
+    .lab p { color: #c9d1d9; line-height: 1.7; margin: 0 0 12px; font-size: 1rem; }
+    .next-mod { display: inline-flex; align-items: center; gap: 8px; margin-top: 22px; text-decoration: none; color: var(--c1); font-weight: 500; font-size: 0.95rem; padding: 10px 22px; border: 1px solid var(--c1); border-radius: 50px; background: rgba(255,255,255,0.03); transition: all 0.3s; }
+    .next-mod:hover { background: rgba(255,255,255,0.09); transform: translateX(4px); }
+    .nav { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 20px; background: rgba(13, 17, 23, 0.7); padding: 12px 30px; border-radius: 50px; border: 1px solid var(--line); backdrop-filter: blur(20px); z-index: 100; }
+    .btn { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; padding: 0 10px; }
+    .btn:hover { color: #fff; }
+    .dots { display: flex; gap: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.3s; }
+    .dot.active { background: var(--c1); transform: scale(1.4); box-shadow: 0 0 10px var(--c1); }
+    .home { position: fixed; top: 25px; left: 25px; color: var(--muted); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border: 1px solid var(--line); border-radius: 50px; background: rgba(13,17,23,0.6); backdrop-filter: blur(10px); transition: all 0.3s; z-index: 100; }
+    .home:hover { color: #fff; border-color: var(--c1); }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home">← Sommaire</a>
+
+<div class="deck">
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- 1 -->
+  <div class="slide active" data-n="1">
+    <div class="content">
+      <span class="step-label">Étape 01 · Le plan</span>
+      <h1>L'Architecture du Cluster</h1>
+      <div class="panel">
+        <p>Une résidence Kubernetes se divise en <strong>deux zones</strong>. La zone de <strong>gestion</strong> (le « plan de contrôle », ou <em>control plane</em>) : c'est le bureau du syndic, là où toutes les décisions se prennent. La zone de <strong>travail</strong> (les <em>nœuds</em>, ou <em>workers</em>) : ce sont les immeubles où vivent réellement les habitants.</p>
+        <p>Chaque zone est faite de quelques <strong>composants</strong>, des petits programmes spécialisés. Comprendre qui fait quoi, c'est comprendre Kubernetes : quand quelque chose cassera, vous saurez à quel bureau frapper.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">D'un côté, le <em>bureau de gestion</em> avec ses employés (réception, cadastre, agent immobilier, contrôleur). De l'autre, les <em>immeubles</em>, chacun avec son gardien, son standard téléphonique et ses ascenseurs. On visite les deux.</div></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="slide" data-n="2">
+    <div class="content">
+      <span class="step-label">Étape 02 · La gestion</span>
+      <h2>Le Plan de Contrôle</h2>
+      <div class="panel"><p>Le bureau de gestion comporte <strong>quatre employés</strong>. Aucun ne loge d'habitant : ils prennent les décisions, gardent la mémoire et veillent à ce que la réalité corresponde aux contrats.</p></div>
+      <div class="grid" style="margin-top:24px;">
+        <div class="mini-card"><div class="mini-num">01</div><h3>kube-apiserver</h3><p>La réception, le guichet unique. <strong>Tout</strong> passe par lui : aucune commande ne touche le cluster sans frapper à cette porte d'abord.</p><span class="mini-tag">l'accueil</span></div>
+        <div class="mini-card"><div class="mini-num">02</div><h3>etcd</h3><p>Le cadastre : la base de données qui contient l'état complet et officiel de toute la résidence, à chaque instant.</p><span class="mini-tag">le registre / cadastre</span></div>
+        <div class="mini-card"><div class="mini-num">03</div><h3>kube-scheduler</h3><p>L'agent immobilier : pour chaque nouvel appartement à loger, il choisit l'immeuble le mieux adapté.</p><span class="mini-tag">l'agent immobilier</span></div>
+        <div class="mini-card"><div class="mini-num">04</div><h3>controller-manager</h3><p>Le contrôleur : il vérifie en boucle que les contrats sont respectés et corrige tout écart (un appartement manque ? il en crée un).</p><span class="mini-tag">le contrôleur qualité</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="slide" data-n="3">
+    <div class="content">
+      <span class="step-label">Étape 03 · Réception & mémoire</span>
+      <h2>API Server & etcd</h2>
+      <div class="panel">
+        <p>Le <strong>kube-apiserver</strong> est le centre névralgique. C'est une porte d'entrée unique qui : <em>reçoit</em> toutes les demandes (les vôtres via <em>kubectl</em>, et celles des autres composants), <em>vérifie</em> que vous avez le droit et que la demande est valide, puis <em>écrit</em> le résultat dans etcd. Personne ne lit ou n'écrit dans etcd directement : on passe toujours par la réception.</p>
+        <p><strong>etcd</strong> est une base de données « clé-valeur » qui stocke l'unique source de vérité : la liste de tous les objets (pods, services, configs…) et leur état désiré. Si etcd est perdu sans sauvegarde, la résidence perd sa mémoire. C'est l'élément le plus précieux du cluster.</p>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">En production, etcd est <em>sauvegardé religieusement</em> et souvent répliqué sur 3 ou 5 machines pour survivre à une panne (voir module 14, haute disponibilité). Sur Minikube, il y a un seul etcd, non répliqué : si on casse le cluster, on le recrée, sans drame, puisque c'est un terrain d'entraînement.</div></div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="slide" data-n="4">
+    <div class="content">
+      <span class="step-label">Étape 04 · Décision & correction</span>
+      <h2>Scheduler & Controllers</h2>
+      <div class="panel">
+        <p>Le <strong>kube-scheduler</strong> ne s'occupe que d'une chose : les nouveaux pods qui n'ont pas encore d'immeuble. Pour chacun, il examine tous les nœuds disponibles, filtre ceux qui conviennent (assez de CPU/mémoire ? contraintes respectées ?), les note, et attribue le pod au meilleur. Il ne lance rien : il décide seulement <em>où</em>.</p>
+        <p>Le <strong>kube-controller-manager</strong> regroupe une foule de petits surveillants (les « contrôleurs »), chacun responsable d'un type d'objet. Le contrôleur de déploiement veille à ce qu'il y ait toujours le bon nombre de copies ; le contrôleur de nœud détecte les immeubles qui ne répondent plus. Tous suivent la même boucle : <strong>observer > comparer > corriger</strong>.</p>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">L'<em>agent immobilier</em> (scheduler) dit « ce nouveau locataire ira dans l'immeuble B, il y a de la place ». Le <em>contrôleur</em> patrouille sans cesse : « le contrat dit 3 appartements occupés, je n'en compte que 2, j'en rouvre un immédiatement ».</div></div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="slide" data-n="5">
+    <div class="content">
+      <span class="step-label">Étape 05 · Les immeubles</span>
+      <h2>Le Nœud (Worker)</h2>
+      <div class="panel"><p>Chaque nœud (immeuble) fait tourner <strong>trois composants</strong> qui exécutent concrètement les décisions du bureau de gestion.</p></div>
+      <div class="grid-3" style="margin-top:24px;">
+        <div class="mini-card"><div class="mini-num">01</div><h3>kubelet</h3><p>Le gardien de l'immeuble. Il demande à la réception « des locataires pour moi ? », puis veille à ce qu'ils soient bien installés et en vie. C'est le seul à parler à la gestion.</p><span class="mini-tag">le gardien</span></div>
+        <div class="mini-card"><div class="mini-num">02</div><h3>kube-proxy</h3><p>Le standard téléphonique de l'immeuble. Il programme les règles réseau pour qu'un appel vers une « adresse de service » arrive au bon appartement.</p><span class="mini-tag">le standard</span></div>
+        <div class="mini-card"><div class="mini-num">03</div><h3>container runtime</h3><p>Le moteur qui démarre réellement les conteneurs (containerd). C'est lui qui « emménage les meubles » dans l'appartement.</p><span class="mini-tag">les ascenseurs / le moteur</span></div>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">En production, ces trois composants tournent sur <em>chaque</em> immeuble du quartier, parfois des centaines. Sur Minikube, il n'y a qu'un seul immeuble qui, fait amusant, héberge <em>à la fois</em> le bureau de gestion et les locataires. C'est une particularité du mono-nœud : dans un vrai cluster, on les sépare.</div></div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="slide" data-n="6">
+    <div class="content">
+      <span class="step-label">Étape 06 · Le voyage d'une demande</span>
+      <h2>Que se Passe-t-il Quand on Crée un Pod ?</h2>
+      <div class="panel">
+        <p>Suivons une demande de bout en bout. C'est le scénario qui relie tous les composants :</p>
+        <ol>
+          <li>Vous tapez une commande : <em>kubectl</em> envoie votre fichier YAML à la <strong>réception</strong> (apiserver).</li>
+          <li>La réception vérifie vos droits, valide la demande, et inscrit l'état désiré au <strong>cadastre</strong> (etcd). Le pod existe « sur le papier », sans immeuble.</li>
+          <li>L'<strong>agent immobilier</strong> (scheduler) repère ce pod sans adresse, choisit un immeuble et note l'attribution (toujours via la réception).</li>
+          <li>Le <strong>gardien</strong> (kubelet) de cet immeuble voit qu'un locataire lui est attribué et demande au <strong>moteur</strong> (runtime) de télécharger l'image et de démarrer les conteneurs.</li>
+          <li>Le gardien rapporte l'état (« il est en vie ») à la réception, qui met à jour le cadastre.</li>
+          <li>Le <strong>standard</strong> (kube-proxy) ajuste les règles réseau pour que le nouveau locataire soit joignable.</li>
+        </ol>
+      </div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">Aucun employé ne court partout : chacun <em>observe le cadastre</em> et agit dans son couloir. C'est ce découplage qui rend la résidence robuste, un employé peut redémarrer sans bloquer les autres.</div></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="slide" data-n="7">
+    <div class="content">
+      <span class="step-label">Étape 07 · Le réseau</span>
+      <h2>La Mise en Réseau</h2>
+      <div class="panel">
+        <p>Kubernetes impose une règle réseau simple et puissante : <strong>chaque pod reçoit sa propre adresse IP</strong>, et <strong>tous les pods peuvent se parler directement</strong>, sans traduction d'adresse, où qu'ils soient dans le cluster. Du point de vue d'un pod, tous les autres sont sur le même grand réseau plat.</p>
+        <p>Cette promesse est tenue par un <strong>plugin réseau (CNI)</strong> installé dans le cluster. Vous n'avez pas à le programmer : il câble l'immeuble pour vous. Trois niveaux d'adresses coexistent : l'IP de chaque <em>pod</em> (éphémère), l'IP stable d'un <em>service</em> (module 7), et le DNS interne qui donne des noms lisibles à tout ça.</p>
+      </div>
+      <div class="prod"><span class="prod-lbl">Kubernetes réel</span><div class="prod-txt">Le choix du plugin CNI (Calico, Cilium, Flannel…) est une vraie décision d'architecture en production, avec des conséquences sur la performance et la sécurité réseau. Minikube en installe un <em>par défaut</em> : on profite du réseau câblé sans s'en soucier, ce qui est parfait pour apprendre la logique avant les détails.</div></div>
+    </div>
+  </div>
+
+  <!-- 8 -->
+  <div class="slide" data-n="8">
+    <div class="content">
+      <span class="step-label">Étape 08 · QCM</span>
+      <h2>Vérifiez vos Acquis</h2>
+      <div class="qcm-grid">
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 01</div><div class="q-text">Toute interaction avec le cluster passe obligatoirement par le kube-apiserver.</div></div>
+            <div class="flip-back"><div class="b-title">La porte unique</div><p>Vrai. L'apiserver est le seul point d'entrée : kubectl, les contrôleurs et les kubelets lui parlent tous. Personne n'écrit dans etcd en direct.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="false" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 02</div><div class="q-text">Le kube-scheduler démarre lui-même les conteneurs sur le nœud qu'il a choisi.</div></div>
+            <div class="flip-back"><div class="b-title">Il décide seulement</div><p>Le scheduler <em>choisit</em> le nœud, rien de plus. C'est le kubelet de ce nœud qui, ensuite, fait démarrer les conteneurs via le runtime.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 03</div><div class="q-text">Perdre etcd sans sauvegarde, c'est perdre l'état du cluster.</div></div>
+            <div class="flip-back"><div class="b-title">La mémoire du cluster</div><p>etcd est la source de vérité unique. C'est pour cela qu'en production il est sauvegardé et répliqué avec le plus grand soin.</p></div>
+          </div>
+        </div>
+        <div class="flip-card" data-correct="true" onclick="this.classList.toggle('flipped')">
+          <div class="flip-card-inner">
+            <div class="flip-front"><div class="q-num">QUESTION 04</div><div class="q-text">Dans Kubernetes, chaque pod possède sa propre adresse IP.</div></div>
+            <div class="flip-back"><div class="b-title">Réseau plat</div><p>Vrai. Le modèle réseau donne une IP par pod et permet à tous les pods de communiquer directement, grâce au plugin CNI.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 -->
+  <div class="slide" data-n="9">
+    <div class="content">
+      <span class="step-label">Étape 09 · Atelier</span>
+      <h2>Atelier 2 : Visiter les Bureaux (après le module 3)</h2>
+      <div class="lab">
+        <span class="lab-badge">Atelier 02 · À garder pour après l'installation</span>
+        <h3>Voir de ses yeux les composants tourner dans Minikube</h3>
+        <p>Minikube n'étant pas encore installé, notez ces commandes : vous les exécuterez <strong>juste après le module 3</strong>. Particularité de Minikube : les composants de gestion tournent eux-mêmes comme des pods, dans une aile réservée nommée <em>kube-system</em>. C'est l'occasion de mettre des noms réels sur la théorie.</p>
+        <div class="lab-section">
+          <div class="lab-section-title">Voir les immeubles, puis les employés de la gestion</div><div class="code"><span class="cmt">La liste des immeubles : avec Minikube, il n'y en a qu'un</span>
+<span class="cmd">$</span> kubectl get nodes -o wide
+<span class="cmt">Les composants du plan de controle, vus comme des pods</span>
+<span class="cmd">$</span> kubectl get pods -n kube-system
+<span class="cmt">On y reconnait : etcd-minikube, kube-apiserver-minikube,</span>
+<span class="cmt">kube-scheduler-minikube, kube-controller-manager-minikube, kube-proxy...</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Entrer dans l'immeuble et regarder le moteur</div><div class="code"><span class="cmt">Ouvrir une session a l'interieur du noeud Minikube</span>
+<span class="cmd">$</span> minikube ssh
+<span class="cmt">Une fois dedans : voir les conteneurs gERes par le runtime</span>
+<span class="cmd">$</span> docker ps        <span class="cmt"># si le driver est docker</span>
+<span class="cmd">$</span> exit             <span class="cmt"># ressortir de l'immeuble</span></div>
+        </div>
+        <div class="lab-section">
+          <div class="lab-section-title">Exercice de correspondance (à faire maintenant, sur papier)</div>
+          <p>Sans machine : associez chaque composant à son rôle dans la résidence, apiserver, etcd, scheduler, controller-manager, kubelet, kube-proxy, runtime. Puis tracez de mémoire le voyage d'un pod (les 6 étapes de l'étape 06). Si vous y arrivez, l'architecture est acquise.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="slide" data-n="10">
+    <div class="content">
+      <span class="step-label">Étape 10 · Conclusion</span>
+      <h2>Récapitulatif du Module 2</h2>
+      <div class="panel"><ul>
+        <li><strong>Deux zones :</strong> le plan de contrôle (gestion) et les nœuds (travail).</li>
+        <li><strong>Plan de contrôle :</strong> apiserver (la porte unique), etcd (la mémoire), scheduler (place les pods), controller-manager (corrige les écarts).</li>
+        <li><strong>Nœud :</strong> kubelet (le gardien), kube-proxy (le réseau de service), runtime (démarre les conteneurs).</li>
+        <li><strong>Le voyage d'un pod :</strong> kubectl > apiserver > etcd > scheduler > kubelet > runtime, chacun observant le cadastre.</li>
+        <li><strong>Réseau :</strong> une IP par pod, communication directe entre pods, câblée par le plugin CNI.</li>
+      </ul></div>
+      <div class="maison"><span class="maison-lbl">Côté résidence</span><div class="maison-txt">On connaît le personnel et les plans. Il est temps de poser la première pierre : le module 3 construit la résidence pour de vrai sur votre machine Ubuntu.</div></div>
+      <a href="module-3.html" class="next-mod">Module 3 : Installer Minikube ></a>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav">
+  <button class="btn" onclick="navSlide(-1)">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="btn" onclick="navSlide(1)">›</button>
+</div>
+
+<script>
+  let cur = 1;
+  const total = 10;
+  const dotsContainer = document.getElementById('dots');
+  for(let i=1; i<=total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 1 ? ' active' : '');
+    dot.onclick = () => goToSlide(i);
+    dotsContainer.appendChild(dot);
+  }
+  function navSlide(dir) { goToSlide(cur + dir); }
+  function goToSlide(n) {
+    if(n < 1 || n > total) return;
+    cur = n;
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.slide[data-n="${cur}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => { d.classList.toggle('active', i + 1 === cur); });
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowRight') navSlide(1);
+    if(e.key === 'ArrowLeft') navSlide(-1);
+  });
+</script>
+</body>
+</html>
